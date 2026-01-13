@@ -73,10 +73,11 @@ HTMLComponents.loadCSS('styles/theme.css', {
 });
 ```
 
-#### HTMLComponents.buildPage(componentList, targetElement, clearTarget)
-Builds an entire page from a list of components.
+#### HTMLComponents.buildPage(pageDefinition, targetElement, clearTarget)
+Builds an entire page from a component list or enhanced page definition object.
 
 ```javascript
+// Legacy array format (still supported)
 const pageStructure = [
     'header.html',
     { name: 'hero-section', props: { title: 'Welcome' } },
@@ -84,7 +85,405 @@ const pageStructure = [
 ];
 
 HTMLComponents.buildPage(pageStructure, 'body');
+
+// Enhanced object format with metadata and advanced features
+const enhancedPage = {
+    title: 'My Awesome Website',
+    description: 'A modern website built with HTML Components',
+    layout: 'default',
+    styles: ['styles/main.css', 'styles/home.css'],
+    meta: {
+        author: 'Developer',
+        keywords: 'web, components, javascript'
+    },
+    components: [
+        // Advanced component definitions
+    ]
+};
+
+HTMLComponents.buildPage(enhancedPage, 'body');
 ```
+
+## 🎨 Enhanced Page Building
+
+The library now supports advanced page definitions with metadata, conditional loading, nested components, and layout sections. This allows for much more flexible and powerful page building.
+
+### Enhanced Page Definition Format
+
+```javascript
+const pageDefinition = {
+    // Page metadata
+    title: 'My Website',
+    description: 'Page description for SEO',
+    layout: 'default', // Layout identifier
+    styles: ['styles/main.css', 'styles/page.css'], // Page-specific styles
+
+    // Custom meta data
+    meta: {
+        author: 'Developer Name',
+        keywords: 'web, components, javascript'
+    },
+
+    // Component definitions
+    components: [
+        // All component definition formats supported
+    ]
+};
+```
+
+### Advanced Component Definitions
+
+#### Layout Sections
+Create named sections with automatic HTML structure:
+
+```javascript
+{
+    layout: 'header', // Simple string
+    children: [
+        'components/navigation.html'
+    ]
+}
+
+// Or with full control
+{
+    layout: {
+        class: 'hero-section full-width',
+        id: 'hero',
+        attrs: { 'data-theme': 'dark' }
+    },
+    children: [
+        { name: 'hero-banner', props: { title: 'Welcome' } }
+    ]
+}
+```
+
+#### Conditional Components
+Load components based on conditions:
+
+```javascript
+{
+    name: 'mobile-menu',
+    condition: () => window.innerWidth < 768,
+    props: { theme: 'dark' }
+}
+
+// Function-based conditions
+{
+    name: 'admin-panel',
+    condition: () => user.isAdmin,
+    props: { user: currentUser }
+}
+```
+
+#### Component Nesting
+Create complex layouts with nested components:
+
+```javascript
+{
+    layout: { class: 'dashboard-grid', id: 'dashboard' },
+    children: [
+        {
+            layout: { class: 'sidebar', id: 'sidebar' },
+            children: [
+                'components/user-profile.html',
+                { name: 'navigation-menu', props: { active: 'dashboard' } }
+            ]
+        },
+        {
+            layout: { class: 'main-content', id: 'main' },
+            children: [
+                { name: 'stats-cards', props: { user: currentUser } },
+                {
+                    layout: { class: 'content-grid' },
+                    children: [
+                        { name: 'recent-activity', props: { limit: 5 } },
+                        { name: 'notifications', props: { unread: true } }
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+#### Dynamic Props
+Use functions to compute props at runtime:
+
+```javascript
+{
+    name: 'user-greeting',
+    props: {
+        username: () => currentUser.name,
+        timeOfDay: () => {
+            const hour = new Date().getHours();
+            return hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+        },
+        lastLogin: () => formatDate(currentUser.lastLogin)
+    }
+}
+```
+
+#### CSS Classes and IDs
+Add styling and identification directly in component definitions:
+
+```javascript
+{
+    name: 'hero-banner',
+    props: { title: 'Welcome' },
+    css: ['hero-section', 'animated', 'full-width'], // Classes
+    id: 'main-hero' // ID attribute
+}
+```
+
+### Page Caching System
+
+The library includes intelligent page caching to prevent redundant page building operations and improve performance.
+
+#### Automatic Caching
+Pages are automatically cached when built, with cache keys generated from page definitions:
+
+```javascript
+// First build - components are loaded and rendered
+HTMLComponents.buildPage(myPageDefinition);
+
+// Second build with same definition - loaded from cache instantly
+HTMLComponents.buildPage(myPageDefinition); // Much faster!
+```
+
+#### Cache Key Generation
+Cache keys are automatically generated based on:
+- Page title and layout
+- Component count and structure
+- Target element selector
+
+#### Manual Cache Keys
+Provide explicit cache keys for precise control:
+
+```javascript
+const page = {
+    cacheKey: 'homepage_v1', // Explicit cache key
+    title: 'Home Page',
+    components: [/* ... */]
+};
+
+HTMLComponents.buildPage(page); // Uses 'homepage_v1' as cache key
+```
+
+#### Per-Page Cache Control
+Override global cache settings for individual pages:
+
+```javascript
+const page = {
+    cache: false, // Disable caching for this page only
+    title: 'Dynamic Page',
+    components: [/* ... */]
+};
+```
+
+#### Cache Management API
+
+```javascript
+// Enable/disable global caching
+HTMLComponents.enablePageCache();
+HTMLComponents.disablePageCache();
+
+// Clear all cached pages
+HTMLComponents.clearPageCache();
+
+// Get cache statistics
+const stats = HTMLComponents.getPageCacheStats();
+console.log(stats); // { enabled: true, size: 5, keys: ['key1', 'key2', ...] }
+```
+
+#### Cache Options
+Pass cache options directly to buildPage:
+
+```javascript
+// Force disable caching for this build
+HTMLComponents.buildPage(pageDef, 'body', true, { enabled: false });
+
+// Use custom cache key
+HTMLComponents.buildPage(pageDef, 'body', true, { key: 'custom_key' });
+```
+
+### File Caching System
+
+The library includes intelligent file caching to prevent redundant loading of HTML components, CSS files, and other resources.
+
+#### Automatic File Caching
+Files are automatically cached when loaded for the first time:
+
+```javascript
+// First load - fetches from network and caches
+HTMLComponents.loadComponent('#header', 'components/header.html');
+
+// Second load of same file - loads from cache instantly
+HTMLComponents.loadComponent('#footer', 'components/header.html'); // Much faster!
+```
+
+#### File Cache Management
+
+```javascript
+// Enable/disable global file caching
+HTMLComponents.enableFileCache();
+HTMLComponents.disableFileCache();
+
+// Clear all cached files
+HTMLComponents.clearFileCache();
+
+// Get file cache statistics
+const stats = HTMLComponents.getFileCacheStats();
+console.log(stats); // { enabled: true, size: 5, keys: ['file1.html', 'file2.css', ...] }
+```
+
+#### What Gets Cached
+- **HTML Components**: Component files loaded via `loadComponent()`
+- **CSS Files**: Stylesheets loaded via `loadCSS()` or page definitions
+- **Cached Content**: Full text content of files for instant retrieval
+
+#### Cache Benefits
+- **Reduced Network Requests**: Files load instantly on repeat access
+- **Improved Performance**: Especially beneficial for large component libraries
+- **Bandwidth Savings**: No redundant downloads of the same resources
+- **Better UX**: Faster page loads and component switching
+
+#### Cache Persistence
+- **Session-Based**: Cache persists for the duration of the page session
+- **Memory Efficient**: Only stores text content, not binary resources
+- **Automatic Cleanup**: No manual cache invalidation required for development
+
+#### Cache Control Examples
+
+```javascript
+// Disable file caching for development
+HTMLComponents.disableFileCache();
+
+// Check what's cached
+console.log(HTMLComponents.getFileCacheStats());
+
+// Clear cache when deploying updates
+HTMLComponents.clearFileCache();
+```
+
+### Page Metadata Features
+
+#### Automatic Title and Description
+Page titles and meta descriptions are set automatically:
+
+```javascript
+const page = {
+    title: 'My Awesome App',
+    description: 'A modern web application built with components',
+    // ...
+};
+
+HTMLComponents.buildPage(page); // Sets document.title and meta description
+```
+
+#### Page-Specific Styles
+Load CSS files specifically for this page:
+
+```javascript
+const page = {
+    styles: [
+        'styles/base.css',
+        'styles/page-specific.css',
+        { href: 'styles/theme.css', media: 'screen' }
+    ],
+    // ...
+};
+```
+
+### Component Definition Examples
+
+#### Complete Homepage Example
+```javascript
+const homepage = {
+    title: 'My Company - Home',
+    description: 'Welcome to our amazing company website',
+    styles: ['styles/home.css'],
+    components: [
+        // Header with navigation
+        {
+            layout: { class: 'header', id: 'header' },
+            children: ['components/navigation.html']
+        },
+
+        // Hero section with conditional content
+        {
+            name: 'hero-banner',
+            condition: () => window.innerWidth > 768,
+            props: {
+                title: () => 'Welcome to ' + document.title,
+                subtitle: 'We build amazing products',
+                ctaText: 'Learn More'
+            },
+            css: ['hero-section', 'gradient-bg']
+        },
+
+        // Features grid
+        {
+            layout: { class: 'features-section container', id: 'features' },
+            children: [
+                {
+                    name: 'feature-card',
+                    props: { title: 'Fast', icon: '⚡', description: 'Lightning fast performance' },
+                    css: 'feature-highlight'
+                },
+                {
+                    name: 'feature-card',
+                    props: { title: 'Secure', icon: '🔒', description: 'Enterprise-grade security' }
+                },
+                {
+                    name: 'feature-card',
+                    props: { title: 'Scalable', icon: '📈', description: 'Grows with your business' }
+                }
+            ]
+        },
+
+        // Footer
+        'components/footer.html'
+    ]
+};
+
+HTMLComponents.buildPage(homepage, 'body', true);
+```
+
+### Migration from Legacy Format
+
+The library maintains full backward compatibility. Legacy array-based definitions still work:
+
+```javascript
+// Legacy format (still supported)
+const legacyPage = [
+    'header.html',
+    { name: 'hero', props: { title: 'Welcome' } },
+    'footer.html'
+];
+
+// Enhanced format
+const enhancedPage = {
+    title: 'My Site',
+    components: [
+        'header.html',
+        { name: 'hero', props: { title: 'Welcome' } },
+        'footer.html'
+    ]
+};
+
+// Both work identically
+HTMLComponents.buildPage(legacyPage);
+HTMLComponents.buildPage(enhancedPage);
+```
+
+### Best Practices for Enhanced Pages
+
+1. **Use Layout Sections**: Organize content with semantic layout sections
+2. **Leverage Conditions**: Show/hide components based on user state or screen size
+3. **Nest Components**: Build complex UIs with nested component hierarchies
+4. **Dynamic Props**: Use functions for computed values and reactive data
+5. **Page Metadata**: Always set title and description for SEO
+6. **Modular Styles**: Load page-specific CSS files as needed
 
 ### Component Registry
 
@@ -156,6 +555,36 @@ Clears all cached components and images.
 
 ```javascript
 HTMLComponents.clearComponentCache();
+```
+
+### Cache Management
+
+#### Page Cache
+```javascript
+// Enable/disable global page caching
+HTMLComponents.enablePageCache();
+HTMLComponents.disablePageCache();
+
+// Clear all cached pages
+HTMLComponents.clearPageCache();
+
+// Get page cache statistics
+const stats = HTMLComponents.getPageCacheStats();
+console.log(stats); // { enabled: true, size: 5, keys: ['key1', 'key2', ...] }
+```
+
+#### File Cache
+```javascript
+// Enable/disable global file caching
+HTMLComponents.enableFileCache();
+HTMLComponents.disableFileCache();
+
+// Clear all cached files
+HTMLComponents.clearFileCache();
+
+// Get file cache statistics
+const stats = HTMLComponents.getFileCacheStats();
+console.log(stats); // { enabled: true, size: 5, keys: ['file1.html', 'file2.css', ...] }
 ```
 
 ## 🎨 Component Definition Format

@@ -139,6 +139,106 @@
     // Component registry for storing component definitions
     const componentRegistry = new Map();
 
+    // Page cache for storing rendered page content
+    const pageCache = {
+        enabled: true, // Default to enabled
+        cache: new Map(),
+
+        set: function(key, content) {
+            if (this.enabled) {
+                this.cache.set(key, {
+                    content: content,
+                    timestamp: Date.now()
+                });
+                logger.log('Page cached:', key);
+            }
+        },
+
+        get: function(key) {
+            if (!this.enabled) return null;
+
+            const cached = this.cache.get(key);
+            if (cached) {
+                logger.success('Page loaded from cache:', key);
+                return cached.content;
+            }
+            return null;
+        },
+
+        clear: function() {
+            this.cache.clear();
+            logger.info('Page cache cleared');
+        },
+
+        enable: function() {
+            this.enabled = true;
+            logger.info('Page caching enabled');
+        },
+
+        disable: function() {
+            this.enabled = false;
+            logger.info('Page caching disabled');
+        },
+
+        getStats: function() {
+            return {
+                enabled: this.enabled,
+                size: this.cache.size,
+                keys: Array.from(this.cache.keys())
+            };
+        }
+    };
+
+    // File cache for storing loaded file content (HTML, CSS, etc.)
+    const fileCache = {
+        enabled: true, // Default to enabled
+        cache: new Map(),
+
+        set: function(url, content) {
+            if (this.enabled) {
+                this.cache.set(url, {
+                    content: content,
+                    timestamp: Date.now()
+                });
+                logger.log('File cached:', url);
+            }
+        },
+
+        get: function(url) {
+            if (!this.enabled) return null;
+
+            const cached = this.cache.get(url);
+            if (cached) {
+                logger.success('File loaded from cache:', url);
+                return cached.content;
+            }
+            return null;
+        },
+
+        clear: function() {
+            this.cache.clear();
+            logger.info('File cache cleared');
+        },
+
+        enable: function() {
+            this.enabled = true;
+            logger.info('File caching enabled');
+        },
+
+        disable: function() {
+            this.enabled = false;
+            logger.info('File caching disabled');
+        },
+
+        getStats: function() {
+            return {
+                enabled: this.enabled,
+                size: this.cache.size,
+                keys: Array.from(this.cache.keys())
+            };
+        }
+    };
+
     // Image loading utility
     const imageLoader = {
         cache: new Map(),
@@ -184,9 +284,21 @@
         }
     };
 
-    // Main component loading function
-    function loadComponent(element, componentPath) {
+    // Internal component loading function (works with DOM elements)
+    function loadComponentIntoElement(element, componentPath) {
         logger.log('Loading component:', componentPath);
+
+        // Check file cache first
+        const cachedContent = fileCache.get(componentPath);
+        if (cachedContent) {
+            logger.success('Component loaded from file cache:', componentPath);
+            element.innerHTML = cachedContent;
+
+            // Execute any scripts in the cached HTML
+            executeScripts(element);
+
+            return Promise.resolve(cachedContent);
+        }
 
         return fetch(componentPath)
             .then(response => {
@@ -199,6 +311,10 @@
             })
             .then(html => {
                 logger.success('Component HTML loaded successfully:', componentPath + ' (' + html.length + ' chars)');
+
+                // Cache the content
+                fileCache.set(componentPath, html);
+
                 element.innerHTML = html;
 
                 // Execute any scripts in the loaded HTML
@@ -238,7 +354,7 @@
         });
     }
 
-    // CSS loading functionality
+    // CSS loading functionality with caching
     function loadCSS(href, options = {}) {
         return new Promise((resolve, reject) => {
             // Check if already loaded
@@ -246,6 +362,21 @@
             if (existing) {
                 logger.success('CSS already loaded:', href);
                 resolve(existing);
+                return;
+            }
+
+            // Check file cache first
+            const cachedCSS = fileCache.get(href);
+            if (cachedCSS) {
+                logger.success('CSS loaded from file cache:', href);
+
+                // Inject cached CSS as style element
+                const style = document.createElement('style');
+                style.setAttribute('data-cached-css', href);
+                style.textContent = cachedCSS;
+                document.head.appendChild(style);
+
+                resolve(style);
                 return;
             }
 
@@ -264,6 +395,24 @@
 
             link.onload = () => {
                 logger.success('CSS loaded successfully:', href);
+
+                // Fetch the CSS content to cache it
+                fetch(href)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.text();
+                        }
+                        return null;
+                    })
+                    .then(cssContent => {
+                        if (cssContent) {
+                            fileCache.set(href, cssContent);
+                        }
+                    })
+                    .catch(err => {
+                        logger.warn('Could not cache CSS content:', href);
+                    });
+
                 resolve(link);
             };
 
@@ -301,7 +450,7 @@
         const componentPromises = Array.from(components).map(element => {
             const componentPath = element.getAttribute('data-component');
             if (componentPath) {
-                return loadComponent(element, componentPath);
+                return loadComponentIntoElement(element, componentPath);
             }
             return Promise.resolve();
         });
@@ -362,14 +511,65 @@
         return html;
     }
 
-    // Page building function
-    function buildPageFromComponents(componentList, targetElement = 'body', clearTarget = false) {
-        logger.info('Building page from component list');
+    // Enhanced page building function with advanced features and caching
+    function buildPageFromComponents(pageDefinition, targetElement = 'body', clearTarget = false, cacheOptions = {}) {
+        logger.info('Building page from enhanced definition');
 
         const target = document.querySelector(targetElement);
         if (!target) {
             logger.error('Target element not found:', targetElement);
             return Promise.reject(new Error('Target element not found'));
+        }
+
+        // Handle both legacy array format and new enhanced object format
+        let componentList = pageDefinition;
+        let pageMeta = {};
+        let cacheKey = null;
+        let useCache = pageCache.enabled;
+
+        // Handle cache options
+        if (cacheOptions.key) {
+            cacheKey = cacheOptions.key;
+        }
+        if (cacheOptions.enabled !== undefined) {
+            useCache = cacheOptions.enabled;
+        }
+
+        if (typeof pageDefinition === 'object' && !Array.isArray(pageDefinition)) {
+            // Enhanced page definition format
+            componentList = pageDefinition.components || [];
+            pageMeta = {
+                title: pageDefinition.title,
+                description: pageDefinition.description,
+                layout: pageDefinition.layout || 'default',
+                styles: pageDefinition.styles || [],
+                meta: pageDefinition.meta || {}
+            };
+
+            // Use cache key from page definition if provided
+            if (pageDefinition.cacheKey) {
+                cacheKey = pageDefinition.cacheKey;
+            }
+
+            // Override cache settings from page definition
+            if (pageDefinition.cache !== undefined) {
+                useCache = pageDefinition.cache;
+            }
+        }
+
+        // Generate cache key if not provided and caching is enabled
+        if (!cacheKey && useCache) {
+            cacheKey = generateCacheKey(pageDefinition, targetElement);
+        }
+
+        // Check cache first if caching is enabled
+        if (useCache && cacheKey) {
+            const cachedContent = pageCache.get(cacheKey);
+            if (cachedContent) {
+                target.innerHTML = cachedContent;
+                logger.success('Page loaded from cache, skipping build process');
+                return Promise.resolve([{ status: 'fulfilled', value: 'loaded-from-cache' }]);
+            }
         }
 
         // Clear target if specified or if target is essentially empty (like in index.html)
@@ -382,48 +582,183 @@
             logger.log('Cleared target element for fresh build');
         }
 
-        // Build page from components
-        const loadPromises = componentList.map(component => {
-            if (typeof component === 'string') {
-                // Simple component name - load file into target
-                logger.log('Loading file component:', component);
-                return loadComponent(target, component);
-            } else if (typeof component === 'object') {
-                // Component with props
-                const { name, selector, props = {} } = component;
-                let element;
+        // Apply page-level styles if specified
+        if (pageMeta.styles && pageMeta.styles.length > 0) {
+            pageMeta.styles.forEach(styleUrl => {
+                loadCSS(styleUrl).catch(err => logger.warn('Failed to load page style:', styleUrl));
+            });
+        }
 
-                if (selector) {
-                    // Use specified selector
-                    element = document.querySelector(selector);
-                    if (!element) {
-                        logger.warn('Selector not found, using target:', selector);
-                        element = target;
-                    }
-                } else {
-                    // No selector specified, use target
-                    element = target;
-                }
+        // Set page title if specified
+        if (pageMeta.title) {
+            document.title = pageMeta.title;
+        }
 
-                if (componentRegistry.has(name)) {
-                    // Use registered component
-                    logger.log('Building registered component:', name);
-                    const html = createComponentElement(name, props);
-                    element.insertAdjacentHTML('beforeend', html);
-                    return Promise.resolve(html);
-                } else {
-                    // Load from file
-                    logger.log('Loading unregistered component as file:', name);
-                    return loadComponent(element, name);
-                }
+        // Set meta description if specified
+        if (pageMeta.description) {
+            let metaDesc = document.querySelector('meta[name="description"]');
+            if (!metaDesc) {
+                metaDesc = document.createElement('meta');
+                metaDesc.name = 'description';
+                document.head.appendChild(metaDesc);
             }
-            return Promise.resolve();
+            metaDesc.content = pageMeta.description;
+        }
+
+        // Process components with enhanced features
+        const loadPromises = componentList.map(component => {
+            return processComponentDefinition(component, target);
         });
 
         return Promise.allSettled(loadPromises).then(results => {
             logger.success('Page built successfully with', componentList.length, 'components');
+
+            // Cache the result if caching is enabled and we have a cache key
+            if (useCache && cacheKey) {
+                pageCache.set(cacheKey, target.innerHTML);
+            }
+
             return results;
         });
+    }
+
+    // Generate a cache key from page definition
+    function generateCacheKey(pageDefinition, targetElement) {
+        try {
+            // For arrays, create a simple hash
+            if (Array.isArray(pageDefinition)) {
+                return 'array_' + btoa(JSON.stringify(pageDefinition)).slice(0, 16) + '_' + targetElement;
+            }
+
+            // For objects, use a combination of key properties
+            if (typeof pageDefinition === 'object') {
+                const keyParts = [];
+
+                // Include title, layout, and component count
+                if (pageDefinition.title) keyParts.push(pageDefinition.title);
+                if (pageDefinition.layout) keyParts.push(pageDefinition.layout);
+                if (pageDefinition.components) keyParts.push(pageDefinition.components.length);
+
+                // Include target element
+                keyParts.push(targetElement);
+
+                // Create a hash-like string
+                const keyString = keyParts.join('|');
+                return 'object_' + btoa(keyString).slice(0, 16);
+            }
+
+            // Fallback for other types
+            return 'fallback_' + String(pageDefinition).slice(0, 16) + '_' + targetElement;
+
+        } catch (e) {
+            // If anything fails, disable caching for this page
+            logger.warn('Could not generate cache key, disabling cache for this page');
+            return null;
+        }
+    }
+
+    // Process individual component definitions with enhanced features
+    function processComponentDefinition(component, target) {
+        // Handle different component definition formats
+
+        if (typeof component === 'string') {
+            // Simple component name - load file into target
+            logger.log('Loading file component:', component);
+            return loadComponentIntoElement(target, component);
+        }
+
+        if (typeof component === 'object') {
+            // Check for conditional rendering
+            if (component.condition !== undefined) {
+                const conditionResult = typeof component.condition === 'function'
+                    ? component.condition()
+                    : component.condition;
+
+                if (!conditionResult) {
+                    logger.log('Skipping conditional component:', component.name || 'unnamed');
+                    return Promise.resolve();
+                }
+            }
+
+            const { name, selector, props = {}, layout, children, css, id } = component;
+            let element = target;
+
+            // Handle layout sections
+            if (layout) {
+                const layoutClass = typeof layout === 'string' ? layout : layout.class || '';
+                const layoutId = typeof layout === 'string' ? '' : layout.id || '';
+
+                element = document.createElement('section');
+                element.className = layoutClass;
+                if (layoutId) element.id = layoutId;
+
+                // Add layout-specific attributes
+                if (typeof layout === 'object') {
+                    if (layout.attrs) {
+                        Object.keys(layout.attrs).forEach(attr => {
+                            element.setAttribute(attr, layout.attrs[attr]);
+                        });
+                    }
+                }
+
+                target.appendChild(element);
+                logger.log('Created layout section:', layoutClass || layoutId);
+            } else if (selector) {
+                // Use specified selector
+                element = document.querySelector(selector);
+                if (!element) {
+                    logger.warn('Selector not found, using target:', selector);
+                    element = target;
+                }
+            }
+
+            // Add CSS classes if specified
+            if (css) {
+                if (typeof css === 'string') {
+                    element.classList.add(...css.split(' '));
+                } else if (Array.isArray(css)) {
+                    element.classList.add(...css);
+                }
+            }
+
+            // Add ID if specified
+            if (id) {
+                element.id = id;
+            }
+
+            // Process props (handle functions for computed values)
+            const processedProps = {};
+            Object.keys(props).forEach(key => {
+                const value = props[key];
+                processedProps[key] = typeof value === 'function' ? value() : value;
+            });
+
+            // Handle component loading
+            let componentPromise;
+            if (componentRegistry.has(name)) {
+                // Use registered component
+                logger.log('Building registered component:', name);
+                const html = createComponentElement(name, processedProps);
+                element.insertAdjacentHTML('beforeend', html);
+                componentPromise = Promise.resolve(html);
+            } else {
+                // Load from file
+                logger.log('Loading unregistered component as file:', name);
+                componentPromise = loadComponentIntoElement(element, name);
+            }
+
+            // Handle nested children
+            if (children && Array.isArray(children)) {
+                return componentPromise.then(() => {
+                    const childPromises = children.map(child => processComponentDefinition(child, element));
+                    return Promise.allSettled(childPromises);
+                });
+            }
+
+            return componentPromise;
+        }
+
+        return Promise.resolve();
     }
 
     // Expose functions globally for manual loading
@@ -432,7 +767,7 @@
         loadComponent: function(selector, componentPath) {
             const element = document.querySelector(selector);
             if (element) {
-                return loadComponent(element, componentPath);
+                return loadComponentIntoElement(element, componentPath);
             } else {
                 logger.error('Element not found for selector:', selector);
                 return Promise.reject(new Error('Element not found'));
@@ -450,7 +785,7 @@
             components.forEach(element => {
                 const componentPath = element.getAttribute('data-component');
                 if (componentPath) {
-                    loadComponent(element, componentPath);
+                    loadComponentIntoElement(element, componentPath);
                 }
             });
         },
@@ -470,6 +805,34 @@
         // Page building
         buildPage: function(componentList, targetElement, clearTarget) {
             return buildPageFromComponents(componentList, targetElement, clearTarget);
+        },
+
+        // Page cache management
+        enablePageCache: function() {
+            pageCache.enable();
+        },
+        disablePageCache: function() {
+            pageCache.disable();
+        },
+        clearPageCache: function() {
+            pageCache.clear();
+        },
+        getPageCacheStats: function() {
+            return pageCache.getStats();
+        },
+
+        // File cache management
+        enableFileCache: function() {
+            fileCache.enable();
+        },
+        disableFileCache: function() {
+            fileCache.disable();
+        },
+        clearFileCache: function() {
+            fileCache.clear();
+        },
+        getFileCacheStats: function() {
+            return fileCache.getStats();
         },
 
         // Utility functions

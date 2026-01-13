@@ -8,7 +8,9 @@ A powerful JavaScript library for creating entire websites from modular componen
 - **CSS File Loading**: Dynamically load stylesheets with caching and error handling
 - **JavaScript Component Registry**: Define components entirely in JavaScript with templates, props, and logic
 - **Dynamic Image Loading**: Built-in image loading with caching and preloading
-- **Page Building**: Create entire websites from component lists
+- **Enhanced Page Building**: Advanced page definitions with metadata, conditional loading, nested components, and layout sections
+- **Intelligent Page Caching**: Automatic caching of rendered pages with toggle controls for performance optimization
+- **Smart File Caching**: Automatic caching of loaded HTML components and CSS files with toggle controls
 - **Automatic Script Execution**: Components can include their own JavaScript
 - **Visual Error Notifications**: On-screen notifications for debugging with suggestions
 - **Extensive Logging**: Beautiful colored console output for debugging
