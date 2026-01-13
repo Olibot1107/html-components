@@ -106,33 +106,295 @@
         }
     };
 
-    // Logging utility with high-contrast styled console output
+    // Enhanced logging utility with structured logging, levels, and performance tracking
     const logger = {
-        log: function(message, data) {
-            console.log('%c[HTML Components]%c ' + message, 'color: #0F5132; font-weight: bold; background: #D1E7DD; padding: 3px 6px; border-radius: 4px; border: 1px solid #A3CFBB;', 'color: #FFF; font-weight: bold;', data || '');
+        // Log levels
+        LEVELS: {
+            DEBUG: 0,
+            INFO: 1,
+            SUCCESS: 2,
+            WARN: 3,
+            ERROR: 4,
+            NONE: 5
         },
-        error: function(message, error) {
-            console.error('%c[HTML Components ERROR]%c ' + message, 'color: #842029; font-weight: bold; background: #F8D7DA; padding: 3px 6px; border-radius: 4px; border: 1px solid #F5C2C7;', 'color: #FFF; font-weight: bold;', error || '');
-            // Show visual notification for errors
-            notificationSystem.error(message, error);
+
+        // Current log level (can be changed by user)
+        currentLevel: 1, // Default to INFO
+
+        // Debug mode flag
+        debugMode: false,
+
+        // Performance tracking
+        timers: new Map(),
+
+        // Log history for debugging
+        logHistory: [],
+        maxHistorySize: 100,
+
+        // Enable debug mode
+        enableDebug: function() {
+            this.debugMode = true;
+            this.currentLevel = 0; // DEBUG level
+            this.log('Debug mode enabled - showing all log messages', { level: 'DEBUG' });
         },
-        warn: function(message, data) {
-            console.warn('%c[HTML Components WARNING]%c ' + message, 'color: #664D03; font-weight: bold; background: #FFF3CD; padding: 3px 6px; border-radius: 4px; border: 1px solid #FFEAA7;', 'color: #FFF; font-weight: bold;', data || '');
+
+        // Disable debug mode
+        disableDebug: function() {
+            this.debugMode = false;
+            this.currentLevel = 1; // INFO level
+            this.log('Debug mode disabled', { level: 'INFO' });
+        },
+
+        // Set log level
+        setLevel: function(level) {
+            if (typeof level === 'string' && this.LEVELS[level.toUpperCase()] !== undefined) {
+                this.currentLevel = this.LEVELS[level.toUpperCase()];
+            } else if (typeof level === 'number' && level >= 0 && level <= 5) {
+                this.currentLevel = level;
+            }
+            this.log(`Log level set to: ${Object.keys(this.LEVELS)[this.currentLevel]}`, { level: 'INFO' });
+        },
+
+        // Get current timestamp
+        getTimestamp: function() {
+            return new Date().toISOString();
+        },
+
+        // Format log message with structure
+        formatMessage: function(level, message, data, category = 'GENERAL') {
+            const timestamp = this.getTimestamp();
+            const structuredLog = {
+                timestamp,
+                level: level.toUpperCase(),
+                category,
+                message,
+                data: data || null
+            };
+
+            // Add to history
+            this.logHistory.push(structuredLog);
+            if (this.logHistory.length > this.maxHistorySize) {
+                this.logHistory.shift();
+            }
+
+            // Store in localStorage if available (for debugging)
+            if (this.debugMode && typeof Storage !== 'undefined') {
+                try {
+                    const logs = JSON.parse(localStorage.getItem('html-components-logs') || '[]');
+                    logs.push(structuredLog);
+                    if (logs.length > this.maxHistorySize) {
+                        logs.shift();
+                    }
+                    localStorage.setItem('html-components-logs', JSON.stringify(logs));
+                } catch (e) {
+                    // Ignore localStorage errors
+                }
+            }
+
+            return structuredLog;
+        },
+
+        // Check if message should be logged based on current level
+        shouldLog: function(level) {
+            return this.LEVELS[level.toUpperCase()] >= this.currentLevel;
+        },
+
+        // Get console method and styling for level
+        getConsoleConfig: function(level) {
+            const configs = {
+                DEBUG: {
+                    method: 'debug',
+                    style: 'color: #6F42C1; font-weight: bold; background: #E7D9FF; padding: 3px 6px; border-radius: 4px; border: 1px solid #C4A9E0;'
+                },
+                INFO: {
+                    method: 'info',
+                    style: 'color: #055160; font-weight: bold; background: #CFF4FC; padding: 3px 6px; border-radius: 4px; border: 1px solid #9EEAF9;'
+                },
+                SUCCESS: {
+                    method: 'log',
+                    style: 'color: #0F5132; font-weight: bold; background: #D1E7DD; padding: 3px 6px; border-radius: 4px; border: 1px solid #A3CFBB;'
+                },
+                WARN: {
+                    method: 'warn',
+                    style: 'color: #664D03; font-weight: bold; background: #FFF3CD; padding: 3px 6px; border-radius: 4px; border: 1px solid #FFEAA7;'
+                },
+                ERROR: {
+                    method: 'error',
+                    style: 'color: #842029; font-weight: bold; background: #F8D7DA; padding: 3px 6px; border-radius: 4px; border: 1px solid #F5C2C7;'
+                }
+            };
+            return configs[level.toUpperCase()] || configs.INFO;
+        },
+
+        // Core logging function
+        log: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('DEBUG')) return;
+
+            const structuredLog = this.formatMessage('DEBUG', message, data, category);
+            const config = this.getConsoleConfig('DEBUG');
+
+            console[config.method](
+                `%c[HTML Components ${structuredLog.level}]%c ${structuredLog.timestamp} ${structuredLog.message}`,
+                config.style,
+                'color: #FFF; font-weight: bold;',
+                structuredLog.data || ''
+            );
+        },
+
+        // Info level logging
+        info: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('INFO')) return;
+
+            const structuredLog = this.formatMessage('INFO', message, data, category);
+            const config = this.getConsoleConfig('INFO');
+
+            console[config.method](
+                `%c[HTML Components ${structuredLog.level}]%c ${structuredLog.message}`,
+                config.style,
+                'color: #FFF; font-weight: bold;',
+                structuredLog.data || ''
+            );
+
+            // Show visual notification for important info
+            if (message.includes('initialized') || message.includes('completed')) {
+                notificationSystem.info(message);
+            }
+        },
+
+        // Success logging
+        success: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('SUCCESS')) return;
+
+            const structuredLog = this.formatMessage('SUCCESS', message, data, category);
+            const config = this.getConsoleConfig('SUCCESS');
+
+            console[config.method](
+                `%c[HTML Components ${structuredLog.level}]%c ${structuredLog.message}`,
+                config.style,
+                'color: #FFF; font-weight: bold;',
+                structuredLog.data || ''
+            );
+        },
+
+        // Warning logging
+        warn: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('WARN')) return;
+
+            const structuredLog = this.formatMessage('WARN', message, data, category);
+            const config = this.getConsoleConfig('WARN');
+
+            console[config.method](
+                `%c[HTML Components ${structuredLog.level}]%c ${structuredLog.message}`,
+                config.style,
+                'color: #FFF; font-weight: bold;',
+                structuredLog.data || ''
+            );
+
             // Show visual notification for warnings
             notificationSystem.warning(message, [
                 'Check the browser console for additional details',
                 'This might indicate a non-critical issue'
             ]);
         },
-        success: function(message, data) {
-            console.log('%c[HTML Components SUCCESS]%c ' + message, 'color: #0F5132; font-weight: bold; background: #D1E7DD; padding: 3px 6px; border-radius: 4px; border: 1px solid #A3CFBB;', 'color: #FFF; font-weight: bold;', data || '');
-        },
-        info: function(message, data) {
-            console.info('%c[HTML Components INFO]%c ' + message, 'color: #055160; font-weight: bold; background: #CFF4FC; padding: 3px 6px; border-radius: 4px; border: 1px solid #9EEAF9;', 'color: #FFF; font-weight: bold;', data || '');
-            // Show visual notification for important info
-            if (message.includes('initialized') || message.includes('completed')) {
-                notificationSystem.info(message);
+
+        // Error logging with enhanced context
+        error: function(message, error, category = 'GENERAL') {
+            if (!this.shouldLog('ERROR')) return;
+
+            // Enhanced error context
+            const errorContext = {
+                message: error?.message || 'Unknown error',
+                name: error?.name || 'Error',
+                stack: error?.stack || null,
+                file: error?.fileName || null,
+                line: error?.lineNumber || null,
+                column: error?.columnNumber || null
+            };
+
+            const structuredLog = this.formatMessage('ERROR', message, errorContext, category);
+            const config = this.getConsoleConfig('ERROR');
+
+            console[config.method](
+                `%c[HTML Components ${structuredLog.level}]%c ${structuredLog.message}`,
+                config.style,
+                'color: #FFF; font-weight: bold;'
+            );
+
+            // Log error details separately for better readability
+            if (error) {
+                console[config.method]('%cError Details:', 'font-weight: bold; color: #dc3545;');
+                console[config.method](error);
+                if (error.stack) {
+                    console[config.method]('%cStack Trace:', 'font-weight: bold; color: #dc3545;');
+                    console[config.method](error.stack);
+                }
             }
+
+            // Show visual notification for errors
+            notificationSystem.error(message, error);
+        },
+
+        // Performance timing functions
+        startTimer: function(label, category = 'PERFORMANCE') {
+            if (!this.shouldLog('DEBUG')) return;
+
+            const startTime = performance.now();
+            this.timers.set(label, startTime);
+            this.log(`Timer started: ${label}`, { startTime }, category);
+        },
+
+        endTimer: function(label, category = 'PERFORMANCE') {
+            if (!this.shouldLog('DEBUG')) return;
+
+            const startTime = this.timers.get(label);
+            if (startTime) {
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                this.timers.delete(label);
+                this.log(`Timer ended: ${label} (${duration.toFixed(2)}ms)`, { duration, startTime, endTime }, category);
+                return duration;
+            } else {
+                this.warn(`Timer '${label}' not found`, null, category);
+                return null;
+            }
+        },
+
+        // Get log history
+        getHistory: function(level = null) {
+            if (level) {
+                return this.logHistory.filter(log => log.level === level.toUpperCase());
+            }
+            return [...this.logHistory];
+        },
+
+        // Clear log history
+        clearHistory: function() {
+            this.logHistory = [];
+            if (typeof Storage !== 'undefined') {
+                try {
+                    localStorage.removeItem('html-components-logs');
+                } catch (e) {
+                    // Ignore localStorage errors
+                }
+            }
+            this.log('Log history cleared', { level: 'INFO' });
+        },
+
+        // Get stats
+        getStats: function() {
+            const levelCounts = this.logHistory.reduce((acc, log) => {
+                acc[log.level] = (acc[log.level] || 0) + 1;
+                return acc;
+            }, {});
+
+            return {
+                totalLogs: this.logHistory.length,
+                levelBreakdown: levelCounts,
+                currentLevel: Object.keys(this.LEVELS)[this.currentLevel],
+                debugMode: this.debugMode,
+                maxHistorySize: this.maxHistorySize,
+                activeTimers: this.timers.size
+            };
         }
     };
 
@@ -150,7 +412,7 @@
                     content: content,
                     timestamp: Date.now()
                 });
-                logger.log('Page cached:', key);
+                logger.log('Page cached:', key, 'CACHE');
             }
         },
 
@@ -159,7 +421,7 @@
 
             const cached = this.cache.get(key);
             if (cached) {
-                logger.success('Page loaded from cache:', key);
+                logger.success('Page loaded from cache:', key, 'CACHE');
                 return cached.content;
             }
             return null;
@@ -167,17 +429,17 @@
 
         clear: function() {
             this.cache.clear();
-            logger.info('Page cache cleared');
+            logger.info('Page cache cleared', null, 'CACHE');
         },
 
         enable: function() {
             this.enabled = true;
-            logger.info('Page caching enabled');
+            logger.info('Page caching enabled', null, 'CACHE');
         },
 
         disable: function() {
             this.enabled = false;
-            logger.info('Page caching disabled');
+            logger.info('Page caching disabled', null, 'CACHE');
         },
 
         getStats: function() {
@@ -200,7 +462,7 @@
                     content: content,
                     timestamp: Date.now()
                 });
-                logger.log('File cached:', url);
+                logger.log('File cached:', url, 'CACHE');
             }
         },
 
@@ -209,7 +471,7 @@
 
             const cached = this.cache.get(url);
             if (cached) {
-                logger.success('File loaded from cache:', url);
+                logger.success('File loaded from cache:', url, 'CACHE');
                 return cached.content;
             }
             return null;
@@ -217,17 +479,17 @@
 
         clear: function() {
             this.cache.clear();
-            logger.info('File cache cleared');
+            logger.info('File cache cleared', null, 'CACHE');
         },
 
         enable: function() {
             this.enabled = true;
-            logger.info('File caching enabled');
+            logger.info('File caching enabled', null, 'CACHE');
         },
 
         disable: function() {
             this.enabled = false;
-            logger.info('File caching disabled');
+            logger.info('File caching disabled', null, 'CACHE');
         },
 
         getStats: function() {
@@ -286,23 +548,25 @@
 
     // Internal component loading function (works with DOM elements)
     function loadComponentIntoElement(element, componentPath) {
-        logger.log('Loading component:', componentPath);
+        logger.startTimer(`load-component-${componentPath}`);
+        logger.log('Loading component:', componentPath, 'COMPONENT');
 
         // Check file cache first
         const cachedContent = fileCache.get(componentPath);
         if (cachedContent) {
-            logger.success('Component loaded from file cache:', componentPath);
+            logger.success('Component loaded from file cache:', componentPath, 'COMPONENT');
             element.innerHTML = cachedContent;
 
             // Execute any scripts in the cached HTML
             executeScripts(element);
 
+            logger.endTimer(`load-component-${componentPath}`);
             return Promise.resolve(cachedContent);
         }
 
         return fetch(componentPath)
             .then(response => {
-                logger.log('Fetch response received for:', componentPath, 'Status:', response.status);
+                logger.log('Fetch response received for:', componentPath, 'Status:', response.status, 'COMPONENT');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -310,7 +574,7 @@
                 return response.text();
             })
             .then(html => {
-                logger.success('Component HTML loaded successfully:', componentPath + ' (' + html.length + ' chars)');
+                logger.success('Component HTML loaded successfully:', componentPath + ' (' + html.length + ' chars)', 'COMPONENT');
 
                 // Cache the content
                 fileCache.set(componentPath, html);
@@ -320,14 +584,16 @@
                 // Execute any scripts in the loaded HTML
                 executeScripts(element);
 
+                logger.endTimer(`load-component-${componentPath}`);
                 return html;
             })
             .catch(error => {
-                logger.error(`Failed to load component "${componentPath}": ${error.message}`, error);
+                logger.error(`Failed to load component "${componentPath}": ${error.message}`, error, 'COMPONENT');
                 element.innerHTML = `<div style="color: red; padding: 1rem; border: 1px solid red; background: #ffe6e6;">
                     <strong>Component Load Error:</strong> ${componentPath}<br>
                     <small>${error.message}</small>
                 </div>`;
+                logger.endTimer(`load-component-${componentPath}`);
                 throw error;
             });
     }
@@ -360,7 +626,7 @@
             // Check if already loaded
             const existing = document.querySelector(`link[href="${href}"]`);
             if (existing) {
-                logger.success('CSS already loaded:', href);
+                logger.success('CSS already loaded:', href, 'CSS');
                 resolve(existing);
                 return;
             }
@@ -368,7 +634,7 @@
             // Check file cache first
             const cachedCSS = fileCache.get(href);
             if (cachedCSS) {
-                logger.success('CSS loaded from file cache:', href);
+                logger.success('CSS loaded from file cache:', href, 'CSS');
 
                 // Inject cached CSS as style element
                 const style = document.createElement('style');
@@ -380,7 +646,8 @@
                 return;
             }
 
-            logger.log('Loading CSS:', href);
+            logger.startTimer(`load-css-${href}`);
+            logger.log('Loading CSS:', href, 'CSS');
             const link = document.createElement('link');
             link.rel = 'stylesheet';
             link.href = href;
@@ -394,7 +661,8 @@
             }
 
             link.onload = () => {
-                logger.success('CSS loaded successfully:', href);
+                logger.success('CSS loaded successfully:', href, 'CSS');
+                logger.endTimer(`load-css-${href}`);
 
                 // Fetch the CSS content to cache it
                 fetch(href)
@@ -410,14 +678,15 @@
                         }
                     })
                     .catch(err => {
-                        logger.warn('Could not cache CSS content:', href);
+                        logger.warn('Could not cache CSS content:', href, 'CSS');
                     });
 
                 resolve(link);
             };
 
             link.onerror = () => {
-                logger.error('Failed to load CSS:', href);
+                logger.error('Failed to load CSS:', href, 'CSS');
+                logger.endTimer(`load-css-${href}`);
                 reject(new Error(`Failed to load CSS: ${href}`));
             };
 
@@ -513,7 +782,8 @@
 
     // Enhanced page building function with advanced features and caching
     function buildPageFromComponents(pageDefinition, targetElement = 'body', clearTarget = false, cacheOptions = {}) {
-        logger.info('Building page from enhanced definition');
+        logger.startTimer('build-page');
+        logger.info('Building page from enhanced definition', null, 'PAGE');
 
         const target = document.querySelector(targetElement);
         if (!target) {
@@ -611,7 +881,8 @@
         });
 
         return Promise.allSettled(loadPromises).then(results => {
-            logger.success('Page built successfully with', componentList.length, 'components');
+            const buildTime = logger.endTimer('build-page');
+            logger.success(`Page built successfully with ${componentList.length} components in ${buildTime?.toFixed(2) || 'unknown'}ms`, null, 'PAGE');
 
             // Cache the result if caching is enabled and we have a cache key
             if (useCache && cacheKey) {
@@ -835,6 +1106,32 @@
             return fileCache.getStats();
         },
 
+        // Logging control functions
+        enableDebug: function() {
+            logger.enableDebug();
+        },
+        disableDebug: function() {
+            logger.disableDebug();
+        },
+        setLogLevel: function(level) {
+            logger.setLevel(level);
+        },
+        getLogHistory: function(level) {
+            return logger.getHistory(level);
+        },
+        clearLogHistory: function() {
+            logger.clearHistory();
+        },
+        getLogStats: function() {
+            return logger.getStats();
+        },
+        startTimer: function(label) {
+            logger.startTimer(label);
+        },
+        endTimer: function(label) {
+            return logger.endTimer(label);
+        },
+
         // Utility functions
         getRegisteredComponents: function() {
             return Array.from(componentRegistry.keys());
@@ -842,7 +1139,7 @@
         clearComponentCache: function() {
             componentRegistry.clear();
             imageLoader.cache.clear();
-            logger.info('Component and image caches cleared');
+            logger.info('Component and image caches cleared', null, 'CACHE');
         }
     };
 
