@@ -426,41 +426,7 @@
         }
     };
 
-    // Component registry for storing component definitions - with template pre-compilation
-    const componentRegistry = new Map();
 
-    // Template compiler for efficient prop replacement
-    const templateCompiler = {
-        // Cache compiled templates
-        compiledTemplates: new WeakMap(),
-
-        // Compile template into efficient replacement function
-        compile: function(template, props) {
-            if (!template || !props) return template;
-
-            // Check cache first
-            const cacheKey = template + '|' + props.join(',');
-            if (this.compiledTemplates.has(cacheKey)) {
-                return this.compiledTemplates.get(cacheKey);
-            }
-
-            // Create efficient replacement function
-            const compiled = function(propsObj) {
-                let result = template;
-                for (let i = 0; i < props.length; i++) {
-                    const prop = props[i];
-                    const value = propsObj[prop] !== undefined ? propsObj[prop] : '';
-                    // Use split/join for better performance than regex
-                    result = result.split(`{{${prop}}}`).join(value);
-                }
-                return result;
-            };
-
-            // Cache the compiled function
-            this.compiledTemplates.set(cacheKey, compiled);
-            return compiled;
-        }
-    };
 
     // Page cache for storing rendered page content
     const pageCache = {
@@ -723,8 +689,16 @@
         });
     }
 
+    // JavaScript execution control
+    let jsEnabled = true;
+
     // Execute scripts found in loaded HTML - optimized version
     function executeScripts(container) {
+        if (!jsEnabled) {
+            logger.warn('JavaScript execution is disabled, skipping script execution');
+            return;
+        }
+
         const scripts = container.querySelectorAll('script');
         if (scripts.length === 0) return;
 
@@ -759,6 +733,88 @@
             } catch (e) {
                 logger.error('Error executing inline script:', e);
             }
+        });
+    }
+
+    // JavaScript loading functionality with caching and error handling
+    function loadJS(src, options = {}) {
+        return new Promise((resolve, reject) => {
+            if (!jsEnabled) {
+                logger.warn('JavaScript execution is disabled, cannot load JS file:', src);
+                reject(new Error('JavaScript execution is disabled'));
+                return;
+            }
+
+            // Check if already loaded
+            const existing = document.querySelector(`script[src="${src}"]`);
+            if (existing) {
+                logger.success('JS already loaded:', src);
+                resolve(existing);
+                return;
+            }
+
+            // Check file cache first
+            const cachedJS = fileCache.get(src);
+            if (cachedJS) {
+                logger.success('JS loaded from file cache:', src);
+
+                // Execute cached JS
+                try {
+                    const func = new Function(cachedJS);
+                    func();
+                    resolve({ cached: true, src });
+                } catch (e) {
+                    logger.error('Error executing cached JS:', e);
+                    reject(e);
+                }
+                return;
+            }
+
+            logger.startTimer(`load-js-${src}`);
+            logger.log('Loading JS:', src);
+
+            const script = document.createElement('script');
+            script.src = src;
+
+            if (options.async !== undefined) {
+                script.async = options.async;
+            }
+
+            if (options.crossOrigin) {
+                script.crossOrigin = options.crossOrigin;
+            }
+
+            script.onload = () => {
+                logger.success('JS loaded successfully:', src);
+                logger.endTimer(`load-js-${src}`);
+
+                // Fetch the JS content to cache it
+                fetch(src)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.text();
+                        }
+                        return null;
+                    })
+                    .then(jsContent => {
+                        if (jsContent) {
+                            fileCache.set(src, jsContent);
+                        }
+                    })
+                    .catch(err => {
+                        logger.warn('Could not cache JS content:', src);
+                    });
+
+                resolve(script);
+            };
+
+            script.onerror = () => {
+                logger.error('Failed to load JS:', src);
+                logger.endTimer(`load-js-${src}`);
+                reject(new Error(`Failed to load JS: ${src}`));
+            };
+
+            document.head.appendChild(script);
         });
     }
 
@@ -875,49 +931,7 @@
         });
     });
 
-    // Component definition functions
-    function registerComponent(name, definition) {
-        logger.log('Registering component:', name);
-        componentRegistry.set(name, definition);
-        return definition;
-    }
 
-    function createComponentElement(name, props = {}) {
-        const definition = componentRegistry.get(name);
-        if (!definition) {
-            logger.error('Component not registered:', name);
-            return `<div style="color: red;">Component "${name}" not found</div>`;
-        }
-
-        let html = definition.template || '';
-
-        // Use optimized template compiler for prop replacement
-        if (definition.props && definition.props.length > 0) {
-            const compiledTemplate = templateCompiler.compile(html, definition.props);
-            html = compiledTemplate(props);
-        }
-
-        // Add CSS if provided - batch style injection for better performance
-        if (definition.styles) {
-            const styleId = `component-style-${name}`;
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.textContent = definition.styles;
-                document.head.appendChild(style);
-                logger.log('Added styles for component:', name);
-            }
-        }
-
-        // Execute component logic if provided
-        if (definition.logic && typeof definition.logic === 'function') {
-            logger.log('Executing component logic for:', name);
-            // Logic will be executed after the component is inserted
-            setTimeout(() => definition.logic(props), 0);
-        }
-
-        return html;
-    }
 
     // Enhanced page building function with advanced features and caching
     function buildPageFromComponents(pageDefinition, targetElement = 'body', clearTarget = false, cacheOptions = {}) {
@@ -1140,19 +1154,9 @@
                 processedProps[key] = typeof value === 'function' ? value() : value;
             });
 
-            // Handle component loading
-            let componentPromise;
-            if (componentRegistry.has(name)) {
-                // Use registered component
-                logger.log('Building registered component:', name);
-                const html = createComponentElement(name, processedProps);
-                element.insertAdjacentHTML('beforeend', html);
-                componentPromise = Promise.resolve(html);
-            } else {
-                // Load from file
-                logger.log('Loading unregistered component as file:', name);
-                componentPromise = loadComponentIntoElement(element, name);
-            }
+            // Handle component loading - load from file
+            logger.log('Loading component as file:', name);
+            const componentPromise = loadComponentIntoElement(element, name);
 
             // Handle nested children
             if (children && Array.isArray(children)) {
@@ -1200,9 +1204,40 @@
             }
         },
 
+        // JavaScript loading
+        loadJS: function(src, options) {
+            return loadJS(src, options);
+        },
+
         // CSS loading
         loadCSS: function(href, options) {
             return loadCSS(href, options);
+        },
+
+        // JavaScript execution control
+        enableJS: function() {
+            jsEnabled = true;
+            logger.info('JavaScript execution enabled');
+        },
+        disableJS: function() {
+            jsEnabled = false;
+            logger.info('JavaScript execution disabled');
+        },
+        isJSEnabled: function() {
+            return jsEnabled;
+        },
+
+        // Notification control
+        enableNotifications: function() {
+            // Notifications are always enabled, but we can add a flag if needed
+            logger.info('Visual notifications are enabled');
+        },
+        disableNotifications: function() {
+            // For now, just hide the container if it exists
+            if (notificationSystem.container) {
+                notificationSystem.container.style.display = 'none';
+            }
+            logger.info('Visual notifications disabled');
         },
 
         reloadAll: function() {
@@ -1247,10 +1282,6 @@
         preloadImages: function(sources) {
             return imageLoader.preload(sources);
         },
-
-        // Component registry functions
-        registerComponent: registerComponent,
-        createComponent: createComponentElement,
 
         // Page building
         buildPage: function(componentList, targetElement, clearTarget) {
@@ -1312,11 +1343,7 @@
         },
 
         // Utility functions
-        getRegisteredComponents: function() {
-            return Array.from(componentRegistry.keys());
-        },
         clearComponentCache: function() {
-            componentRegistry.clear();
             imageLoader.cache.clear();
             logger.info('Component and image caches cleared', null, 'CACHE');
         }

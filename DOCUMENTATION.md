@@ -57,6 +57,22 @@ HTMLComponents.loadComponent('#header', 'components/header.html');
 HTMLComponents.loadComponent('.sidebar', 'sidebar.html');
 ```
 
+#### HTMLComponents.loadJS(src, options)
+Loads a JavaScript file dynamically with caching and error handling.
+
+```javascript
+// Load a single JS file
+HTMLComponents.loadJS('scripts/utils.js')
+    .then(() => console.log('JS loaded'))
+    .catch(err => console.error('JS failed:', err));
+
+// Load with options
+HTMLComponents.loadJS('scripts/analytics.js', {
+    async: true, // Load asynchronously
+    crossOrigin: 'anonymous' // For external scripts
+});
+```
+
 #### HTMLComponents.loadCSS(href, options)
 Loads a CSS file dynamically with caching and error handling.
 
@@ -485,31 +501,7 @@ HTMLComponents.buildPage(enhancedPage);
 5. **Page Metadata**: Always set title and description for SEO
 6. **Modular Styles**: Load page-specific CSS files as needed
 
-### Component Registry
 
-#### HTMLComponents.registerComponent(name, definition)
-Registers a JavaScript-defined component.
-
-```javascript
-HTMLComponents.registerComponent('button', {
-    template: '<button class="{{class}}">{{text}}</button>',
-    props: ['text', 'class'],
-    styles: 'button { padding: 10px; border-radius: 5px; }',
-    logic: function(props) {
-        console.log('Button created:', props.text);
-    }
-});
-```
-
-#### HTMLComponents.createComponent(name, props)
-Creates HTML for a registered component.
-
-```javascript
-const buttonHtml = HTMLComponents.createComponent('button', {
-    text: 'Click Me',
-    class: 'primary'
-});
-```
 
 ### Image Loading
 
@@ -545,12 +537,31 @@ HTMLComponents.reloadAll().then(results => {
 });
 ```
 
-#### HTMLComponents.getRegisteredComponents()
-Returns array of registered component names.
+#### HTMLComponents.enableJS() / disableJS() / isJSEnabled()
+Control JavaScript execution globally.
 
 ```javascript
-console.log(HTMLComponents.getRegisteredComponents());
-// ['button', 'hero-section', 'card']
+// Disable JS execution
+HTMLComponents.disableJS();
+
+// Check if JS is enabled
+if (HTMLComponents.isJSEnabled()) {
+    console.log('JS is enabled');
+}
+
+// Re-enable JS execution
+HTMLComponents.enableJS();
+```
+
+#### HTMLComponents.enableNotifications() / disableNotifications()
+Control visual notification display.
+
+```javascript
+// Disable visual notifications
+HTMLComponents.disableNotifications();
+
+// Re-enable notifications
+HTMLComponents.enableNotifications();
 ```
 
 #### HTMLComponents.clearComponentCache()
