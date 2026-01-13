@@ -1,0 +1,174 @@
+<style>
+/* Home page specific styles */
+.home-page {
+    height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #0a0e27;
+    padding: 4rem 2rem 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.home-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 900px;
+    transform: scale(.85);
+    position: relative;
+    z-index: 10;
+}
+
+.terminal-box {
+    border: 1px solid #000;
+    box-shadow: 0 0 11.9px 9px #81cde44f;
+    padding: 1.5rem;
+    background: #0a0e27cc;
+    border-radius: 8px;
+    width: 100%;
+}
+
+.terminal-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(31, 203, 255, .2);
+}
+
+.command-line {
+    font-family: 'Kode Mono', monospace;
+    font-size: 1.5rem;
+    color: #fff;
+    display: block;
+}
+
+.intro-section {
+    padding: 1rem 0;
+}
+
+.intro-title {
+    font-family: 'Kode Mono', monospace;
+    font-size: 3rem;
+    color: #1fcbff;
+    text-shadow: 0 3px 8px rgba(31, 203, 255, .4);
+    margin: 0 0 1.5rem;
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+.bio-text p {
+    font-family: 'Kode Mono', monospace;
+    font-size: 2rem;
+    color: #1fcbff;
+    text-shadow: 0 3px 8px rgba(31, 203, 255, .4);
+    margin: 0 0 .5rem;
+    font-weight: 400;
+}
+
+.bio-list {
+    font-family: 'Kode Mono', monospace;
+    font-size: 2rem;
+    color: #1fcbff;
+    text-shadow: 0 3px 8px rgba(31, 203, 255, .4);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-weight: 400;
+}
+
+.bio-list li {
+    margin: .25rem 0;
+}
+
+.bio-list li:before {
+    content: "• ";
+    margin-right: .5rem;
+}
+
+.tagline {
+    font-family: 'Kode Mono', monospace;
+    font-size: 2.625rem;
+    color: #1fcbff;
+    text-shadow: 0 3px 8px rgba(31, 203, 255, .4);
+    margin: 2rem 0 0;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+.negative-space-label {
+    position: fixed;
+    top: 250px;
+    left: 2rem;
+    font-family: 'Kode Mono', monospace;
+    font-size: 1.5rem;
+    color: red;
+    text-shadow: none;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.more-negative-space-label {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    font-family: 'Kode Mono', monospace;
+    font-size: 1.5rem;
+    color: red;
+    text-shadow: none;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@media (max-width: 768px) {
+    .home-page {
+        padding: 1rem;
+    }
+    .terminal-box {
+        padding: 1.5rem;
+    }
+    .intro-title {
+        font-size: 2rem;
+    }
+    .bio-text p,
+    .bio-list {
+        font-size: 1.25rem;
+    }
+    .tagline {
+        font-size: 1.5rem;
+    }
+    .negative-space-label {
+        font-size: 1rem;
+        top: 100px;
+        left: 1rem;
+    }
+    .more-negative-space-label {
+        font-size: 1rem;
+        bottom: 50px;
+        right: 1rem;
+    }
+}
+</style>
+
+<div class="home-page">
+    <div class="home-content">
+        <div class="terminal-box">
+            <div class="terminal-header">
+                <span class="command-line">> whoami</span>
+            </div>
+            <div class="intro-section">
+                <h1 class="intro-title">HAI :3</h1>
+                <div class="bio-text">
+                    <p>I'm Alma! A:</p>
+                    <ul class="bio-list">
+                        <li>14 year old</li>
+                        <li>clueless</li>
+                        <li>coder/H@XX0R!!! guy</li>
+                    </ul>
+                </div>
+                <p class="tagline">pretty sure i make things.</p>
+            </div>
+        </div>
+    </div>
+</div>

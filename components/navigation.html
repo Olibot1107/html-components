@@ -1,0 +1,91 @@
+<nav class="navigation">
+    <div class="nav-brand">
+        <svg class="nav-icon" width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8.80827 25.9497L11.2831 28.4246L18.7078 21L11.2831 13.5753L8.80827 16.0502L13.758 21L8.80827 25.9497Z" fill="white"/>
+            <path d="M26.25 24.5H19.25V28H26.25V24.5Z" fill="white"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M3.5 3.5C1.567 3.5 0 5.067 0 7V35C0 36.933 1.567 38.5 3.5 38.5H38.5C40.433 38.5 42 36.933 42 35V7C42 5.067 40.433 3.5 38.5 3.5H3.5ZM38.5 7H3.5V35H38.5V7Z" fill="white"/>
+        </svg>
+    </div>
+    <div class="nav-links">
+        <a href="#" class="nav-link" data-page="home">HOME</a>
+        <a href="#" class="nav-link" data-page="projects">THINGS-I-MADE</a>
+        <a href="#" class="nav-link" data-page="contact">TALK-TO-ME</a>
+    </div>
+</nav>
+
+<script>
+// Navigation logic for dynamic page switching
+(function() {
+    // Load main CSS using html-components
+    HTMLComponents.loadCSS('styles.css').catch(error => {
+        console.error('Failed to load main CSS:', error);
+    });
+
+    // Page switching logic
+    const navLinks = document.querySelectorAll('.nav-link[data-page]');
+
+    function switchPage(page) {
+        // Load new content
+        const componentPath = `components/${page}.html`;
+        HTMLComponents.loadComponent('#main-content', componentPath)
+            .then(() => {
+                // Update URL without page reload
+                history.pushState({page: page}, '', `?page=${page}`);
+
+                // Update active link
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-page') === page) {
+                        link.classList.add('active');
+                    }
+                });
+
+                // Update document title
+                const titles = {
+                    home: 'Hack the Pyramids - Alma\'s Portfolio',
+                    projects: 'Projects - Hack the Pyramids',
+                    contact: 'Contact - Hack the Pyramids'
+                };
+                document.title = titles[page] || titles.home;
+            })
+            .catch(error => {
+                console.error('Failed to load page:', error);
+                const mainContent = document.getElementById('main-content');
+                if (mainContent) {
+                    mainContent.innerHTML = '<div style="color: red; text-align: center; padding: 2rem;">Failed to load page content</div>';
+                }
+            });
+    }
+
+    // Handle navigation clicks
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = this.getAttribute('data-page');
+            if (page) {
+                switchPage(page);
+            }
+        });
+    });
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', function(e) {
+        const page = e.state?.page || 'home';
+        switchPage(page);
+    });
+
+    // Check URL parameters on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialPage = urlParams.get('page') || 'home';
+    if (initialPage !== 'home') {
+        switchPage(initialPage);
+    } else {
+        // Set initial active state
+        navLinks.forEach(link => {
+            if (link.getAttribute('data-page') === 'home') {
+                link.classList.add('active');
+            }
+        });
+    }
+})();
+</script>
