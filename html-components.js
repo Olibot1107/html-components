@@ -1142,13 +1142,37 @@
         },
 
         reloadAll: function() {
-            logger.log('Manually reloading all components');
+            logger.log('Manually reloading all components - disabling cache temporarily');
+
+            // Temporarily disable caches to ensure fresh content
+            const wasFileCacheEnabled = fileCache.enabled;
+            const wasPageCacheEnabled = pageCache.enabled;
+
+            fileCache.disable();
+            pageCache.disable();
+
             const components = document.querySelectorAll('[data-component]');
-            components.forEach(element => {
+            const reloadPromises = Array.from(components).map(element => {
                 const componentPath = element.getAttribute('data-component');
                 if (componentPath) {
-                    loadComponentIntoElement(element, componentPath);
+                    return loadComponentIntoElement(element, componentPath);
                 }
+                return Promise.resolve();
+            });
+
+            // Re-enable caches after all reloads complete
+            return Promise.allSettled(reloadPromises).then(results => {
+                if (wasFileCacheEnabled) fileCache.enable();
+                if (wasPageCacheEnabled) pageCache.enable();
+
+                const failedCount = results.filter(result => result.status === 'rejected').length;
+                if (failedCount > 0) {
+                    logger.warn(`${failedCount} components failed to reload`);
+                } else {
+                    logger.success('All components reloaded successfully');
+                }
+
+                return results;
             });
         },
 
