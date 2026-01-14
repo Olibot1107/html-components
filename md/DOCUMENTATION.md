@@ -23,6 +23,57 @@ Load HTML components from files and build pages dynamically.
 Quick start guide: [QUICKSTART.md](QUICKSTART.md)
 ## Component Loading
 
+Components can be loaded in two ways: programmatically using JavaScript functions, or declaratively using HTML attributes. The declarative approach is often easier for simple use cases.
+
+### Declarative Component Loading (Easiest Method)
+
+Use the `data-component` attribute on any HTML element to automatically load a component when the page loads. This is the simplest way to include components:
+
+```html
+<!-- Basic component loading -->
+<div data-component="components/header.html"></div>
+
+<!-- Component with props for dynamic content -->
+<div data-component="components/user-profile.html"
+     data-user-name="John Doe"
+     data-user-role="Admin"
+     data-avatar-url="images/avatar.jpg"></div>
+
+<!-- Nested components -->
+<div data-component="components/sidebar.html">
+    <div data-component="components/menu.html"></div>
+    <div data-component="components/user-info.html"></div>
+</div>
+```
+
+**How it works:**
+- The library automatically finds all elements with `data-component` attributes
+- Loads the specified component file into each element
+- Replaces `{{propName}}` placeholders with data attributes (converted to camelCase)
+- Automatically loads any nested components and CSS/JS files within the component
+
+**Props from Data Attributes:**
+Data attributes like `data-user-name` become `{{userName}}` in your component HTML:
+
+```html
+<!-- user-profile.html -->
+<div class="profile">
+    <h2>{{userName}}</h2>
+    <p>Role: {{userRole}}</p>
+    <img src="{{avatarUrl}}" alt="Avatar">
+</div>
+```
+
+**Advantages:**
+- No JavaScript required for basic usage
+- Components load automatically on page load
+- Easy to read and maintain
+- Perfect for static or mostly static content
+
+### Programmatic Component Loading
+
+For more control or dynamic loading, use JavaScript methods.
+
 ## Installation
 
 Download `html-components.js` or use the CDN:
