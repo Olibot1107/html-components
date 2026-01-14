@@ -911,12 +911,47 @@
         for (const script of scripts) {
             if (script.textContent && script.textContent.includes('function ' + methodName)) {
                 try {
-                    // Extract function from script text (simplified approach)
-                    const funcMatch = script.textContent.match(new RegExp(`function\\s+${methodName}\\s*\\([^)]*\\)\\s*\\{[^}]*\\}`, 's'));
-                    if (funcMatch) {
-                        // Create function from string (not ideal but functional)
-                        return new Function('event', 'el', 'root', funcMatch[0].replace(/^function\s+\w+/, 'return function').replace(/}$/, '};') + `return ${methodName};`)();
+                    // More robust function extraction that handles nested braces
+                    const scriptContent = script.textContent;
+                    const funcStart = scriptContent.indexOf('function ' + methodName);
+
+                    if (funcStart === -1) continue;
+
+                    // Find the opening brace after the function declaration
+                    const afterFuncName = scriptContent.substring(funcStart);
+                    const paramStart = afterFuncName.indexOf('(');
+                    const braceStart = afterFuncName.indexOf('{', paramStart);
+
+                    if (braceStart === -1) continue;
+
+                    // Count braces to find the matching closing brace
+                    let braceCount = 0;
+                    let funcEnd = -1;
+                    const searchStart = funcStart + braceStart;
+
+                    for (let i = searchStart; i < scriptContent.length; i++) {
+                        if (scriptContent[i] === '{') {
+                            braceCount++;
+                        } else if (scriptContent[i] === '}') {
+                            braceCount--;
+                            if (braceCount === 0) {
+                                funcEnd = i;
+                                break;
+                            }
+                        }
                     }
+
+                    if (funcEnd === -1) continue;
+
+                    // Extract the complete function
+                    const funcCode = scriptContent.substring(funcStart, funcEnd + 1);
+
+                    // Create function from string (more reliable approach)
+                    return new Function('event', 'el', 'root', `
+                        ${funcCode}
+                        return ${methodName};
+                    `)();
+
                 } catch (e) {
                     logger.warn(`Could not extract method ${methodName} from script`, null, 'EVENTS');
                 }
