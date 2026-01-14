@@ -4,6 +4,7 @@ Load HTML components from files and build pages dynamically.
 
 ## Table of Contents
 
+- [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Component Loading](#component-loading)
 - [Event Binding (data-click)](#event-binding-data-click)
@@ -21,6 +22,14 @@ Load HTML components from files and build pages dynamically.
 ## For Quick Start
 Quick start guide: [QUICKSTART.md](QUICKSTART.md)
 ## Component Loading
+
+## Installation
+
+Download `html-components.js` or use the CDN:
+
+```html
+<script src="https://html-components.vapp.uk/html-components.js"></script>
+```
 
 ### loadComponent(selector, componentPath, props)
 Load a component from a file into a DOM element with optional props for template replacement.
