@@ -736,87 +736,7 @@
         });
     }
 
-    // JavaScript loading functionality with caching and error handling
-    function loadJS(src, options = {}) {
-        return new Promise((resolve, reject) => {
-            if (!jsEnabled) {
-                logger.warn('JavaScript execution is disabled, cannot load JS file:', src);
-                reject(new Error('JavaScript execution is disabled'));
-                return;
-            }
 
-            // Check if already loaded
-            const existing = document.querySelector(`script[src="${src}"]`);
-            if (existing) {
-                logger.success('JS already loaded:', src);
-                resolve(existing);
-                return;
-            }
-
-            // Check file cache first
-            const cachedJS = fileCache.get(src);
-            if (cachedJS) {
-                logger.success('JS loaded from file cache:', src);
-
-                // Execute cached JS
-                try {
-                    const func = new Function(cachedJS);
-                    func();
-                    resolve({ cached: true, src });
-                } catch (e) {
-                    logger.error('Error executing cached JS:', e);
-                    reject(e);
-                }
-                return;
-            }
-
-            logger.startTimer(`load-js-${src}`);
-            logger.log('Loading JS:', src);
-
-            const script = document.createElement('script');
-            script.src = src;
-
-            if (options.async !== undefined) {
-                script.async = options.async;
-            }
-
-            if (options.crossOrigin) {
-                script.crossOrigin = options.crossOrigin;
-            }
-
-            script.onload = () => {
-                logger.success('JS loaded successfully:', src);
-                logger.endTimer(`load-js-${src}`);
-
-                // Fetch the JS content to cache it
-                fetch(src)
-                    .then(response => {
-                        if (response.ok) {
-                            return response.text();
-                        }
-                        return null;
-                    })
-                    .then(jsContent => {
-                        if (jsContent) {
-                            fileCache.set(src, jsContent);
-                        }
-                    })
-                    .catch(err => {
-                        logger.warn('Could not cache JS content:', src);
-                    });
-
-                resolve(script);
-            };
-
-            script.onerror = () => {
-                logger.error('Failed to load JS:', src);
-                logger.endTimer(`load-js-${src}`);
-                reject(new Error(`Failed to load JS: ${src}`));
-            };
-
-            document.head.appendChild(script);
-        });
-    }
 
     // CSS loading functionality with caching
     function loadCSS(href, options = {}) {
@@ -1204,27 +1124,197 @@
             }
         },
 
-        // JavaScript loading
-        loadJS: function(src, options) {
-            return loadJS(src, options);
+        // Toggle component visibility
+        toggleComponent: function(selector, show = null) {
+            logger.log(`Attempting to toggle component: ${selector}`, { show }, 'TOGGLE');
+
+            const element = document.querySelector(selector);
+            if (!element) {
+                logger.error(`Element not found for selector: ${selector}`, null, 'TOGGLE');
+                return false;
+            }
+
+            const isVisible = element.style.display !== 'none';
+            const shouldShow = show !== null ? show : !isVisible;
+
+            logger.log(`Component ${selector} current visibility: ${isVisible}, will set to: ${shouldShow}`, {
+                currentState: isVisible,
+                targetState: shouldShow,
+                explicitShow: show !== null
+            }, 'TOGGLE');
+
+            if (shouldShow) {
+                // Remove display none to show element (restore original display)
+                element.style.display = '';
+                logger.info(`Component shown: ${selector} (was ${isVisible ? 'visible' : 'hidden'})`, {
+                    selector,
+                    previousState: isVisible,
+                    newState: true
+                }, 'TOGGLE');
+            } else {
+                element.style.display = 'none';
+                logger.info(`Component hidden: ${selector} (was ${isVisible ? 'visible' : 'hidden'})`, {
+                    selector,
+                    previousState: isVisible,
+                    newState: false
+                }, 'TOGGLE');
+            }
+
+            logger.success(`Component toggle completed: ${selector} -> ${shouldShow}`, null, 'TOGGLE');
+            return shouldShow;
         },
+
+        // Show component
+        showComponent: function(selector) {
+            logger.log(`Explicit show request for component: ${selector}`, null, 'TOGGLE');
+            return this.toggleComponent(selector, true);
+        },
+
+        // Hide component
+        hideComponent: function(selector) {
+            logger.log(`Explicit hide request for component: ${selector}`, null, 'TOGGLE');
+            return this.toggleComponent(selector, false);
+        },
+
+        // Toggle CSS file
+        toggleCSS: function(href, enable = null) {
+            logger.log(`Attempting to toggle CSS: ${href}`, { enable }, 'TOGGLE');
+
+            const link = document.querySelector(`link[href="${href}"]`);
+            if (!link) {
+                logger.warn(`CSS file not found: ${href}`, null, 'TOGGLE');
+                return false;
+            }
+
+            const isEnabled = !link.disabled;
+            const shouldEnable = enable !== null ? enable : !isEnabled;
+
+            logger.log(`CSS ${href} current state: ${isEnabled}, will set to: ${shouldEnable}`, {
+                currentState: isEnabled,
+                targetState: shouldEnable,
+                explicitEnable: enable !== null
+            }, 'TOGGLE');
+
+            link.disabled = !shouldEnable;
+
+            if (shouldEnable) {
+                logger.info(`CSS enabled: ${href} (was ${isEnabled ? 'enabled' : 'disabled'})`, {
+                    href,
+                    previousState: isEnabled,
+                    newState: true
+                }, 'TOGGLE');
+            } else {
+                logger.info(`CSS disabled: ${href} (was ${isEnabled ? 'enabled' : 'disabled'})`, {
+                    href,
+                    previousState: isEnabled,
+                    newState: false
+                }, 'TOGGLE');
+            }
+
+            logger.success(`CSS toggle completed: ${href} -> ${shouldEnable}`, null, 'TOGGLE');
+            return shouldEnable;
+        },
+
+        // Enable CSS file
+        enableCSS: function(href) {
+            logger.log(`Explicit enable request for CSS: ${href}`, null, 'TOGGLE');
+            return this.toggleCSS(href, true);
+        },
+
+        // Disable CSS file
+        disableCSS: function(href) {
+            logger.log(`Explicit disable request for CSS: ${href}`, null, 'TOGGLE');
+            return this.toggleCSS(href, false);
+        },
+
+        // Check if component is visible
+        isComponentVisible: function(selector) {
+            const element = document.querySelector(selector);
+            if (!element) {
+                logger.warn('Element not found for selector:', selector, 'STATUS');
+                return false;
+            }
+
+            const isVisible = element.style.display !== 'none';
+            logger.log(`Component visibility check: ${selector} = ${isVisible}`, null, 'STATUS');
+            return isVisible;
+        },
+
+        // Check if CSS file is enabled
+        isCSSEnabled: function(href) {
+            const link = document.querySelector(`link[href="${href}"]`);
+            if (!link) {
+                logger.warn('CSS file not found:', href, 'STATUS');
+                return false;
+            }
+
+            const isEnabled = !link.disabled;
+            logger.log(`CSS enabled check: ${href} = ${isEnabled}`, null, 'STATUS');
+            return isEnabled;
+        },
+
+        // Toggle component by data-component path
+        toggleComponentByPath: function(componentPath, show = null) {
+            logger.log(`Attempting to toggle component by path: ${componentPath}`, { show }, 'TOGGLE');
+            const selector = `[data-component="${componentPath}"]`;
+            return this.toggleComponent(selector, show);
+        },
+
+        // Show component by data-component path
+        showComponentByPath: function(componentPath) {
+            logger.log(`Explicit show request for component by path: ${componentPath}`, null, 'TOGGLE');
+            const selector = `[data-component="${componentPath}"]`;
+            return this.showComponent(selector);
+        },
+
+        // Hide component by data-component path
+        hideComponentByPath: function(componentPath) {
+            logger.log(`Explicit hide request for component by path: ${componentPath}`, null, 'TOGGLE');
+            const selector = `[data-component="${componentPath}"]`;
+            return this.hideComponent(selector);
+        },
+
+        // Check if component is visible by data-component path
+        isComponentVisibleByPath: function(componentPath) {
+            const selector = `[data-component="${componentPath}"]`;
+            return this.isComponentVisible(selector);
+        },
+
+        // Replace component in container with new component
+        replaceComponent: function(selector, newComponentPath) {
+            logger.log(`Replacing component in selector ${selector} with: ${newComponentPath}`, null, 'REPLACE');
+
+            const element = document.querySelector(selector);
+            if (!element) {
+                logger.error(`Element not found for selector: ${selector}`, null, 'REPLACE');
+                return Promise.reject(new Error('Element not found'));
+            }
+
+            // Clear existing content
+            element.innerHTML = '';
+            logger.log(`Cleared existing content in ${selector}`, null, 'REPLACE');
+
+            // Load new component
+            return this.loadComponent(selector, newComponentPath).then(() => {
+                logger.success(`Successfully replaced component in ${selector} with ${newComponentPath}`, null, 'REPLACE');
+            }).catch(error => {
+                logger.error(`Failed to replace component in ${selector} with ${newComponentPath}: ${error.message}`, error, 'REPLACE');
+                throw error;
+            });
+        },
+
+        // Replace component by path with new component
+        replaceComponentByPath: function(oldPath, newPath) {
+            logger.log(`Replacing component ${oldPath} with ${newPath}`, null, 'REPLACE');
+            const selector = `[data-component="${oldPath}"]`;
+            return this.replaceComponent(selector, newPath);
+        },
+
+
 
         // CSS loading
         loadCSS: function(href, options) {
             return loadCSS(href, options);
-        },
-
-        // JavaScript execution control
-        enableJS: function() {
-            jsEnabled = true;
-            logger.info('JavaScript execution enabled');
-        },
-        disableJS: function() {
-            jsEnabled = false;
-            logger.info('JavaScript execution disabled');
-        },
-        isJSEnabled: function() {
-            return jsEnabled;
         },
 
         // Notification control

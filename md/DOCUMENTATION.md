@@ -7,8 +7,8 @@ Load HTML components from files and build pages dynamically.
 - [Quick Start](#quick-start)
 - [Component Loading](#component-loading)
 - [JavaScript & CSS Loading](#javascript--css-loading)
+- [Component and CSS Toggling](#component-and-css-toggling)
 - [Page Building](#page-building)
-- [JavaScript Control](#javascript-control)
 - [Notifications](#notifications)
 - [Image Loading](#image-loading)
 - [Caching](#caching)
@@ -87,6 +87,177 @@ HTMLComponents.loadCSS('styles/theme.css', {
 });
 ```
 
+## Component and CSS Toggling
+
+### Component Visibility Control
+
+#### toggleComponent(selector, show)
+Toggle component visibility on/off or set specific state.
+
+```javascript
+// Toggle between visible/hidden
+HTMLComponents.toggleComponent('#sidebar'); // Toggles current state
+
+// Explicitly show
+HTMLComponents.toggleComponent('#modal', true);
+
+// Explicitly hide
+HTMLComponents.toggleComponent('.notification', false);
+
+// Returns the new visibility state (true = visible, false = hidden)
+const isVisible = HTMLComponents.toggleComponent('#menu');
+```
+
+#### showComponent(selector) / hideComponent(selector)
+Convenience methods for showing/hiding components.
+
+```javascript
+// Show component
+HTMLComponents.showComponent('#welcome-message');
+
+// Hide component
+HTMLComponents.hideComponent('.loading-spinner');
+
+// Returns true (show) or false (hide)
+const result = HTMLComponents.showComponent('.overlay');
+```
+
+#### isComponentVisible(selector)
+Check if a component is currently visible.
+
+```javascript
+// Check visibility
+if (HTMLComponents.isComponentVisible('#sidebar')) {
+    console.log('Sidebar is visible');
+} else {
+    console.log('Sidebar is hidden');
+}
+
+// Conditional logic
+const buttonText = HTMLComponents.isComponentVisible('.menu')
+    ? 'Hide Menu'
+    : 'Show Menu';
+```
+
+#### Component Path-Based Toggling
+Toggle components directly by their data-component path.
+
+```javascript
+// Toggle by component path
+HTMLComponents.toggleComponentByPath('components/header.html');
+
+// Show specific component
+HTMLComponents.showComponentByPath('components/sidebar.html');
+
+// Hide specific component
+HTMLComponents.hideComponentByPath('components/footer.html');
+
+// Check visibility by path
+if (HTMLComponents.isComponentVisibleByPath('components/navigation.html')) {
+    console.log('Navigation is visible');
+}
+```
+
+This is especially useful for toggling components loaded via `<div data-component="path/to/component.html"></div>`.
+
+#### Component Replacement
+Replace existing components with new ones dynamically.
+
+```javascript
+// Replace component in a selector
+HTMLComponents.replaceComponent('#content', 'components/new-content.html')
+    .then(() => console.log('Component replaced'))
+    .catch(err => console.error('Replacement failed:', err));
+
+// Replace component by path
+HTMLComponents.replaceComponentByPath('components/old-sidebar.html', 'components/new-sidebar.html')
+    .then(() => console.log('Sidebar updated'))
+    .catch(err => console.error('Sidebar update failed:', err));
+
+// Practical example: Dynamic page sections
+function switchToContactPage() {
+    HTMLComponents.replaceComponent('#main-content', 'components/contact-page.html');
+}
+
+function switchToAboutPage() {
+    HTMLComponents.replaceComponent('#main-content', 'components/about-page.html');
+}
+```
+
+**Note:** `replaceComponent` clears the existing content and loads the new component. This is perfect for dynamic page updates, theme switching, or content area replacements.
+
+### CSS File Control
+
+#### toggleCSS(href, enable)
+Toggle CSS file on/off or set specific state.
+
+```javascript
+// Toggle between enabled/disabled
+HTMLComponents.toggleCSS('styles/dark-theme.css'); // Toggles current state
+
+// Explicitly enable
+HTMLComponents.toggleCSS('styles/print.css', true);
+
+// Explicitly disable
+HTMLComponents.toggleCSS('styles/debug.css', false);
+
+// Returns the new enabled state (true = enabled, false = disabled)
+const isEnabled = HTMLComponents.toggleCSS('styles/theme.css');
+```
+
+#### enableCSS(href) / disableCSS(href)
+Convenience methods for enabling/disabling CSS files.
+
+```javascript
+// Enable CSS file
+HTMLComponents.enableCSS('styles/responsive.css');
+
+// Disable CSS file
+HTMLComponents.disableCSS('styles/print.css');
+
+// Returns true (enable) or false (disable)
+const result = HTMLComponents.enableCSS('styles/animations.css');
+```
+
+#### isCSSEnabled(href)
+Check if a CSS file is currently enabled.
+
+```javascript
+// Check CSS status
+if (HTMLComponents.isCSSEnabled('styles/dark-theme.css')) {
+    console.log('Dark theme is active');
+} else {
+    console.log('Light theme is active');
+}
+
+// Theme switching
+function toggleTheme() {
+    const darkThemeEnabled = HTMLComponents.isCSSEnabled('styles/dark-theme.css');
+    if (darkThemeEnabled) {
+        HTMLComponents.disableCSS('styles/dark-theme.css');
+        HTMLComponents.enableCSS('styles/light-theme.css');
+    } else {
+        HTMLComponents.disableCSS('styles/light-theme.css');
+        HTMLComponents.enableCSS('styles/dark-theme.css');
+    }
+}
+```
+
+### Logging and Debugging
+
+All toggle operations include detailed logging. Enable debug mode to see full details:
+
+```javascript
+// Enable detailed logging
+HTMLComponents.enableDebug();
+
+// Example console output:
+// [HTML Components DEBUG] Attempting to toggle component: #sidebar
+// [HTML Components DEBUG] Component #sidebar current visibility: false, will set to: true
+// [HTML Components INFO] Component shown: #sidebar (was hidden)
+// [HTML Components SUCCESS] Component toggle completed: #sidebar -> true
+```
+
 ## Page Building
 
 ### buildPage(pageDefinition, targetElement, clearTarget)
@@ -152,26 +323,6 @@ Create structured layouts with automatic HTML elements:
     children: ['user-profile.html', 'menu.html']
 }
 ```
-
-## JavaScript Control
-
-### enableJS() / disableJS() / isJSEnabled()
-Control JavaScript execution globally.
-
-```javascript
-// Disable JavaScript execution
-HTMLComponents.disableJS();
-
-// Check if JS is enabled
-if (HTMLComponents.isJSEnabled()) {
-    console.log('JavaScript is enabled');
-}
-
-// Re-enable JavaScript execution
-HTMLComponents.enableJS();
-```
-
-When disabled, scripts in components won't execute, and loadJS calls will fail.
 
 ## Notifications
 
