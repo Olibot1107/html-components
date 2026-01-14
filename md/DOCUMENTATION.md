@@ -10,29 +10,15 @@ Load HTML components from files and build pages dynamically.
 - [Component and CSS Toggling](#component-and-css-toggling)
 - [Page Building](#page-building)
 - [Notifications](#notifications)
+- [Logging Control](#logging-control)
 - [Image Loading](#image-loading)
 - [Caching](#caching)
 - [Error Handling](#error-handling)
 - [Component Files](#component-files)
 - [Development](#development)
 
-## Quick Start
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>My App</title>
-</head>
-<body>
-    <div data-component="header.html"></div>
-    <div data-component="content.html"></div>
-
-    <script src="html-components.js"></script>
-</body>
-</html>
-```
-
+## For Quick Start
+Quick start guide: [QUICKSTART.md](QUICKSTART.md)
 ## Component Loading
 
 ### loadComponent(selector, componentPath)
@@ -339,6 +325,98 @@ HTMLComponents.enableNotifications();
 
 Notifications appear for errors, warnings, and important events. They auto-dismiss after 10 seconds.
 
+## Logging Control
+
+### enableDebug() / disableDebug()
+Control detailed debug logging.
+
+```javascript
+// Enable debug logging (shows all log levels)
+HTMLComponents.enableDebug();
+
+// Disable debug logging (returns to INFO level)
+HTMLComponents.disableDebug();
+```
+
+Debug mode shows detailed information about component loading, caching, and performance timing.
+
+### setLogLevel(level)
+Set the minimum log level to display.
+
+```javascript
+// Available levels: 'DEBUG', 'INFO', 'SUCCESS', 'WARN', 'ERROR', 'NONE'
+HTMLComponents.setLogLevel('WARN');    // Show warnings and errors only
+HTMLComponents.setLogLevel('ERROR');   // Show errors only
+HTMLComponents.setLogLevel('DEBUG');   // Show all messages
+HTMLComponents.setLogLevel('NONE');    // Disable all logging
+```
+
+### disableLoggingExceptErrors()
+Convenience method to disable all logging except errors.
+
+```javascript
+// Disable all logging except errors
+HTMLComponents.disableLoggingExceptErrors();
+```
+
+This is useful for production environments where you only want to see errors.
+
+### getLogHistory(level)
+Get logged messages for debugging.
+
+```javascript
+// Get all logged messages
+const allLogs = HTMLComponents.getLogHistory();
+
+// Get only error messages
+const errors = HTMLComponents.getLogHistory('ERROR');
+
+// Get only warnings
+const warnings = HTMLComponents.getLogHistory('WARN');
+```
+
+### clearLogHistory()
+Clear the log history.
+
+```javascript
+// Clear all logged messages
+HTMLComponents.clearLogHistory();
+```
+
+### getLogStats()
+Get logging statistics.
+
+```javascript
+// Get logging statistics
+const stats = HTMLComponents.getLogStats();
+console.log(stats);
+// Output:
+// {
+//   totalLogs: 45,
+//   levelBreakdown: { DEBUG: 10, INFO: 15, SUCCESS: 12, WARN: 5, ERROR: 3 },
+//   currentLevel: 'INFO',
+//   debugMode: false,
+//   maxHistorySize: 50,
+//   activeTimers: 2
+// }
+```
+
+### Performance Timing
+Track performance with built-in timers.
+
+```javascript
+// Start timing an operation
+HTMLComponents.startTimer('custom-operation');
+
+// ... perform operation ...
+
+// End timing and get duration
+const duration = HTMLComponents.endTimer('custom-operation');
+console.log(`Operation took ${duration}ms`);
+```
+
+Timers work regardless of log level and are automatically tracked for performance monitoring.
+
 ## Image Loading
 
 ### loadImage(src, options)
@@ -418,7 +496,7 @@ The library provides automatic error detection and visual notifications:
 - **Network Errors**: Connection issues
 - **JavaScript Errors**: Syntax errors in component scripts
 
-Errors appear as slide-in notifications in the top-right corner with details.
+Errors appear as slide-in notifications in the top-right corner showing the error name and message. Full error details including stack traces are logged to the browser console for debugging.
 
 ## Component Files
 
@@ -502,3 +580,4 @@ HTMLComponents.reloadAll();
 
 // Clear all caches
 HTMLComponents.clearComponentCache();
+```

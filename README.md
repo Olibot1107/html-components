@@ -2,8 +2,8 @@
 
 Load HTML components from files and build pages dynamically.
 
-📖 **[Full Documentation](DOCUMENTATION.md)** - Complete API reference and advanced features
-🚀 **[Quick Start Guide](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Full Documentation](md/DOCUMENTATION.md)** - Complete API reference and advanced features
+- **[Quick Start Guide](md/QUICKSTART.md)** - Get Started
 
 ## Installation
 

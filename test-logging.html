@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Components Logging Test</title>
+    <script src="html-components.js"></script>
+</head>
+<body>
+    <h1>HTML Components Logging Test</h1>
+    <div id="test-component"></div>
+
+    <button onclick="testLogging()">Test Enhanced Logging</button>
+    <button onclick="disableLogging()">Disable Logging (Errors Only)</button>
+    <button onclick="enableDebug()">Enable Debug Logging</button>
+
+    <script>
+        function testLogging() {
+            console.log('=== Testing Enhanced Logging ===');
+
+            // Test component loading with timing
+            HTMLComponents.loadComponent('#test-component', 'example/components/home.html')
+                .then(() => {
+                    console.log('Component loaded successfully');
+                })
+                .catch(err => {
+                    console.error('Component load failed:', err);
+                });
+        }
+
+        function disableLogging() {
+            console.log('=== Disabling Logging (Errors Only) ===');
+            HTMLComponents.disableLoggingExceptErrors();
+        }
+
+        function enableDebug() {
+            console.log('=== Enabling Debug Logging ===');
+            HTMLComponents.enableDebug();
+        }
+
+        // Test image preloading
+        setTimeout(() => {
+            console.log('=== Testing Image Preloading ===');
+            HTMLComponents.preloadImages(['https://via.placeholder.com/100x100', 'https://via.placeholder.com/200x200'])
+                .then(results => {
+                    console.log('Image preloading completed:', results);
+                });
+        }, 2000);
+    </script>
+</body>
+</html>

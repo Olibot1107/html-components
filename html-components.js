@@ -118,7 +118,7 @@
         },
 
         error: function(message, error, suggestions = []) {
-            const details = error ? `${error.name}: ${error.message}\n${error.stack || ''}` : null;
+            const details = error ? `${error.name}: ${error.message}` : null;
             this.show('error', 'Component Error', message, details, suggestions);
         },
 
@@ -149,8 +149,8 @@
         // Debug mode flag
         debugMode: false,
 
-        // Performance tracking - use WeakMap for better memory management
-        timers: new WeakMap(),
+        // Performance tracking - use Map for string keys
+        timers: new Map(),
 
         // Log history for debugging - limit size for memory efficiency
         logHistory: [],
@@ -352,10 +352,6 @@
             if (error) {
                 console[config.method]('%cError Details:', 'font-weight: bold; color: #dc3545;');
                 console[config.method](error);
-                if (error.stack) {
-                    console[config.method]('%cStack Trace:', 'font-weight: bold; color: #dc3545;');
-                    console[config.method](error.stack);
-                }
             }
 
             // Show visual notification for errors
@@ -364,25 +360,27 @@
 
         // Performance timing functions
         startTimer: function(label, category = 'PERFORMANCE') {
-            if (!this.shouldLog('DEBUG')) return;
-
             const startTime = performance.now();
             this.timers.set(label, startTime);
-            this.log(`Timer started: ${label}`, { startTime }, category);
+            if (this.shouldLog('DEBUG')) {
+                this.log(`Timer started: ${label}`, { startTime }, category);
+            }
         },
 
         endTimer: function(label, category = 'PERFORMANCE') {
-            if (!this.shouldLog('DEBUG')) return;
-
             const startTime = this.timers.get(label);
             if (startTime) {
                 const endTime = performance.now();
                 const duration = endTime - startTime;
                 this.timers.delete(label);
-                this.log(`Timer ended: ${label} (${duration.toFixed(2)}ms)`, { duration, startTime, endTime }, category);
+                if (this.shouldLog('DEBUG')) {
+                    this.log(`Timer ended: ${label} (${duration.toFixed(2)}ms)`, { duration, startTime, endTime }, category);
+                }
                 return duration;
             } else {
-                this.warn(`Timer '${label}' not found`, null, category);
+                if (this.shouldLog('DEBUG')) {
+                    this.warn(`Timer '${label}' not found`, null, category);
+                }
                 return null;
             }
         },
@@ -554,8 +552,9 @@
                 };
 
                 img.onerror = () => {
-                    logger.error('Failed to load image:', src);
-                    reject(new Error(`Failed to load image: ${src}`));
+                    const error = new Error(`Failed to load image: ${src}`);
+                    logger.error(`Image failed to load: ${src}`, error);
+                    reject(error);
                 };
 
                 img.src = src;
@@ -563,13 +562,32 @@
         },
 
         preload: function(sources) {
-            logger.log('Preloading images:', sources.length);
-            const promises = sources.map(src => this.load(src).catch(err => {
-                logger.warn('Failed to preload image:', src);
-                return null;
-            }));
+            logger.log('Preloading images:', sources.length, 'IMAGE');
+            logger.log('Image sources to preload:', sources, 'IMAGE');
 
-            return Promise.allSettled(promises);
+            const promises = sources.map((src, index) => {
+                logger.log(`Starting preload for image ${index + 1}/${sources.length}:`, src, 'IMAGE');
+                return this.load(src)
+                    .then(result => {
+                        logger.success(`Image ${index + 1}/${sources.length} preloaded successfully:`, src, 'IMAGE');
+                        return result;
+                    })
+                    .catch(err => {
+                        logger.warn(`Failed to preload image ${index + 1}/${sources.length}:`, src, 'IMAGE');
+                        return null;
+                    });
+            });
+
+            return Promise.allSettled(promises).then(results => {
+                const successCount = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+                const failureCount = results.filter(r => r.status === 'rejected' || r.value === null).length;
+                logger.log(`Image preloading completed: ${successCount} successful, ${failureCount} failed out of ${sources.length} total`, {
+                    total: sources.length,
+                    successful: successCount,
+                    failed: failureCount
+                }, 'IMAGE');
+                return results;
+            });
         }
     };
 
@@ -605,9 +623,10 @@
             });
         }
 
+        const fetchStartTime = performance.now();
         return fetch(componentPath)
             .then(response => {
-                logger.log('Fetch response received for:', componentPath, 'Status:', response.status, 'COMPONENT');
+                logger.log(`Fetch response received for: ${componentPath} (Status: ${response.status})`, null, 'COMPONENT');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -615,7 +634,8 @@
                 return response.text();
             })
             .then(html => {
-                logger.success('Component HTML loaded successfully:', componentPath + ' (' + html.length + ' chars)', 'COMPONENT');
+                const totalTime = logger.endTimer(`load-component-${componentPath}`);
+                logger.success(`Component HTML loaded successfully: ${componentPath} (${html.length} chars, ${totalTime?.toFixed(2) || 'unknown'}ms total)`, null, 'COMPONENT');
 
                 // Cache the content
                 fileCache.set(componentPath, html);
@@ -628,7 +648,6 @@
                 // Load any nested components found in the loaded content
                 return loadNestedComponents(element).then(() => {
                     loadingComponents.delete(componentPath);
-                    logger.endTimer(`load-component-${componentPath}`);
                     return html;
                 });
             })
@@ -648,26 +667,43 @@
     function loadNestedComponents(container) {
         // Load nested CSS files
         const nestedCSS = container.querySelectorAll('[data-css]');
-        const cssPromises = Array.from(nestedCSS).map(element => {
+        logger.log(`Found ${nestedCSS.length} nested CSS elements to process`, null, 'COMPONENT');
+        const cssPromises = Array.from(nestedCSS).map((element, index) => {
             const cssPath = element.getAttribute('data-css');
             if (cssPath) {
-                logger.log('Loading nested CSS:', cssPath, 'CSS');
-                return loadCSS(cssPath).catch(err => {
-                    logger.warn('Failed to load nested CSS:', cssPath, 'CSS');
-                    return null;
-                });
+                logger.log(`Loading nested CSS ${index + 1}/${nestedCSS.length}:`, cssPath, 'CSS');
+                return loadCSS(cssPath)
+                    .then(result => {
+                        logger.success(`Nested CSS loaded successfully: ${cssPath}`, null, 'CSS');
+                        return result;
+                    })
+                    .catch(err => {
+                        logger.warn(`Failed to load nested CSS ${index + 1}: ${cssPath}`, null, 'CSS');
+                        return null;
+                    });
             }
+            logger.log(`Skipping nested CSS element ${index + 1}: no data-css attribute`, null, 'CSS');
             return Promise.resolve();
         });
 
         // Load nested components
         const nestedComponents = container.querySelectorAll('[data-component]');
-        const componentPromises = Array.from(nestedComponents).map(element => {
+        logger.log(`Found ${nestedComponents.length} nested component elements to process`, null, 'COMPONENT');
+        const componentPromises = Array.from(nestedComponents).map((element, index) => {
             const nestedPath = element.getAttribute('data-component');
             if (nestedPath) {
-                logger.log('Loading nested component:', nestedPath, 'COMPONENT');
-                return loadComponentIntoElement(element, nestedPath);
+                logger.log(`Loading nested component ${index + 1}/${nestedComponents.length}:`, nestedPath, 'COMPONENT');
+                return loadComponentIntoElement(element, nestedPath)
+                    .then(result => {
+                        logger.success(`Nested component loaded successfully: ${nestedPath}`, null, 'COMPONENT');
+                        return result;
+                    })
+                    .catch(err => {
+                        logger.error(`Failed to load nested component ${index + 1}: ${nestedPath}`, err, 'COMPONENT');
+                        return null;
+                    });
             }
+            logger.log(`Skipping nested component element ${index + 1}: no data-component attribute`, null, 'COMPONENT');
             return Promise.resolve();
         });
 
@@ -715,25 +751,38 @@
         });
 
         // Load external scripts
-        externalScripts.forEach(src => {
-            logger.log('Executing external script:', src);
+        externalScripts.forEach((src, index) => {
+            logger.log(`Executing external script ${index + 1}/${externalScripts.length}:`, src, 'SCRIPT');
             const newScript = document.createElement('script');
             newScript.src = src;
             newScript.async = false; // Maintain execution order
+
+            // Add load and error event listeners for better tracking
+            newScript.onload = () => {
+                logger.success(`External script loaded successfully: ${src}`, null, 'SCRIPT');
+            };
+            newScript.onerror = () => {
+                logger.error(`Failed to load external script: ${src}`, null, 'SCRIPT');
+            };
+
             document.head.appendChild(newScript);
+            logger.log(`External script element added to DOM: ${src}`, null, 'SCRIPT');
         });
 
         // Execute inline scripts safely
         inlineScripts.forEach((scriptText, index) => {
-            logger.log('Executing inline script', { index });
+            logger.log(`Executing inline script ${index + 1}/${inlineScripts.length}`, { scriptLength: scriptText.length }, 'SCRIPT');
             try {
                 // Use Function constructor instead of eval for better performance and security
                 const func = new Function(scriptText);
                 func();
+                logger.success(`Inline script ${index + 1} executed successfully`, null, 'SCRIPT');
             } catch (e) {
-                logger.error('Error executing inline script:', e);
+                logger.error(`Error executing inline script ${index + 1}:`, e, 'SCRIPT');
             }
         });
+
+        logger.log(`Script execution completed: ${externalScripts.length} external, ${inlineScripts.length} inline`, null, 'SCRIPT');
     }
 
 
@@ -779,13 +828,14 @@
             }
 
             link.onload = () => {
-                logger.success('CSS loaded successfully:', href, 'CSS');
-                logger.endTimer(`load-css-${href}`);
+                const loadTime = logger.endTimer(`load-css-${href}`);
+                logger.success(`CSS loaded successfully: ${href} (${loadTime?.toFixed(2) || 'unknown'}ms)`, null, 'CSS');
 
                 // Fetch the CSS content to cache it
                 fetch(href)
                     .then(response => {
                         if (response.ok) {
+                            logger.log(`Cache fetch completed for ${href}`, null, 'CSS');
                             return response.text();
                         }
                         return null;
@@ -927,25 +977,39 @@
 
         // Apply page-level styles if specified
         if (pageMeta.styles && pageMeta.styles.length > 0) {
-            pageMeta.styles.forEach(styleUrl => {
-                loadCSS(styleUrl).catch(err => logger.warn('Failed to load page style:', styleUrl));
+            logger.log(`Loading ${pageMeta.styles.length} page-level styles`, { styles: pageMeta.styles }, 'PAGE');
+            pageMeta.styles.forEach((styleUrl, index) => {
+                logger.log(`Loading page style ${index + 1}/${pageMeta.styles.length}: ${styleUrl}`, null, 'PAGE');
+                loadCSS(styleUrl).catch(err => {
+                    logger.warn(`Failed to load page style ${index + 1}: ${styleUrl}`, null, 'PAGE');
+                });
             });
         }
 
         // Set page title if specified
         if (pageMeta.title) {
+            const oldTitle = document.title;
             document.title = pageMeta.title;
+            logger.log(`Page title set: "${pageMeta.title}" (was: "${oldTitle}")`, { newTitle: pageMeta.title, oldTitle }, 'PAGE');
         }
 
         // Set meta description if specified
         if (pageMeta.description) {
             let metaDesc = document.querySelector('meta[name="description"]');
+            const oldDescription = metaDesc ? metaDesc.content : null;
+
             if (!metaDesc) {
                 metaDesc = document.createElement('meta');
                 metaDesc.name = 'description';
                 document.head.appendChild(metaDesc);
+                logger.log('Created new meta description element', null, 'PAGE');
             }
             metaDesc.content = pageMeta.description;
+            logger.log(`Meta description set: "${pageMeta.description}" (was: "${oldDescription || 'none'}")`, {
+                newDescription: pageMeta.description,
+                oldDescription,
+                elementCreated: !oldDescription
+            }, 'PAGE');
         }
 
         // Process components with enhanced features
@@ -1012,14 +1076,21 @@
         }
 
         if (typeof component === 'object') {
+            logger.log('Processing component definition:', component.name || 'unnamed', 'COMPONENT');
+
             // Check for conditional rendering
             if (component.condition !== undefined) {
                 const conditionResult = typeof component.condition === 'function'
                     ? component.condition()
                     : component.condition;
 
+                logger.log(`Conditional component ${component.name || 'unnamed'} evaluation: ${conditionResult}`, {
+                    conditionType: typeof component.condition,
+                    result: conditionResult
+                }, 'COMPONENT');
+
                 if (!conditionResult) {
-                    logger.log('Skipping conditional component:', component.name || 'unnamed');
+                    logger.info(`Skipping conditional component: ${component.name || 'unnamed'}`, null, 'COMPONENT');
                     return Promise.resolve();
                 }
             }
@@ -1031,58 +1102,101 @@
             if (layout) {
                 const layoutClass = typeof layout === 'string' ? layout : layout.class || '';
                 const layoutId = typeof layout === 'string' ? '' : layout.id || '';
+                const layoutTag = typeof layout === 'object' ? layout.tag || 'section' : 'section';
 
-                element = document.createElement('section');
+                logger.log(`Creating layout element: ${layoutTag} with class "${layoutClass}" and id "${layoutId}"`, null, 'COMPONENT');
+
+                element = document.createElement(layoutTag);
                 element.className = layoutClass;
                 if (layoutId) element.id = layoutId;
 
                 // Add layout-specific attributes
                 if (typeof layout === 'object') {
                     if (layout.attrs) {
+                        logger.log(`Adding layout attributes:`, layout.attrs, 'COMPONENT');
                         Object.keys(layout.attrs).forEach(attr => {
                             element.setAttribute(attr, layout.attrs[attr]);
                         });
                     }
+                    if (layout.styles) {
+                        logger.log(`Adding layout styles:`, layout.styles, 'COMPONENT');
+                        Object.assign(element.style, layout.styles);
+                    }
                 }
 
                 target.appendChild(element);
-                logger.log('Created layout section:', layoutClass || layoutId);
+                logger.success(`Created layout element: ${layoutTag}.${layoutClass}#${layoutId}`, null, 'COMPONENT');
             } else if (selector) {
                 // Use specified selector
+                logger.log(`Using selector for component placement: ${selector}`, null, 'COMPONENT');
                 element = document.querySelector(selector);
                 if (!element) {
-                    logger.warn('Selector not found, using target:', selector);
+                    logger.warn(`Selector not found "${selector}", falling back to target element`, null, 'COMPONENT');
                     element = target;
+                } else {
+                    logger.log(`Found target element with selector: ${selector}`, null, 'COMPONENT');
                 }
             }
 
             // Add CSS classes if specified - batch class additions
             if (css) {
                 const classesToAdd = typeof css === 'string' ? css.split(' ') : css;
+                logger.log(`Adding CSS classes to element:`, classesToAdd, 'COMPONENT');
                 element.classList.add(...classesToAdd);
             }
 
             // Add ID if specified
             if (id) {
+                logger.log(`Setting element ID: ${id}`, null, 'COMPONENT');
                 element.id = id;
             }
 
             // Process props (handle functions for computed values)
             const processedProps = {};
+            let computedPropsCount = 0;
             Object.keys(props).forEach(key => {
                 const value = props[key];
-                processedProps[key] = typeof value === 'function' ? value() : value;
+                if (typeof value === 'function') {
+                    processedProps[key] = value();
+                    computedPropsCount++;
+                } else {
+                    processedProps[key] = value;
+                }
             });
 
+            if (Object.keys(props).length > 0) {
+                logger.log(`Processed component props: ${Object.keys(props).length} total, ${computedPropsCount} computed`, {
+                    totalProps: Object.keys(props).length,
+                    computedProps: computedPropsCount,
+                    propKeys: Object.keys(props)
+                }, 'COMPONENT');
+            }
+
             // Handle component loading - load from file
-            logger.log('Loading component as file:', name);
+            logger.log(`Loading component "${name}" into element`, {
+                componentName: name,
+                targetElement: element.tagName + (element.className ? '.' + element.className : '') + (element.id ? '#' + element.id : ''),
+                hasChildren: !!(children && Array.isArray(children)),
+                childrenCount: children && Array.isArray(children) ? children.length : 0
+            }, 'COMPONENT');
+
             const componentPromise = loadComponentIntoElement(element, name);
 
             // Handle nested children
             if (children && Array.isArray(children)) {
+                logger.log(`Component has ${children.length} nested children to process`, null, 'COMPONENT');
                 return componentPromise.then(() => {
-                    const childPromises = children.map(child => processComponentDefinition(child, element));
-                    return Promise.allSettled(childPromises);
+                    logger.log(`Processing ${children.length} nested component children`, null, 'COMPONENT');
+                    const childPromises = children.map((child, index) => {
+                        logger.log(`Processing child component ${index + 1}/${children.length}`, null, 'COMPONENT');
+                        return processComponentDefinition(child, element);
+                    });
+                    return Promise.allSettled(childPromises).then(results => {
+                        const successCount = results.filter(r => r.status === 'fulfilled').length;
+                        const failureCount = results.filter(r => r.status === 'rejected').length;
+                        logger.log(`Child component processing completed: ${successCount} successful, ${failureCount} failed`, null, 'COMPONENT');
+                        return results;
+                    });
                 });
             }
 
@@ -1094,21 +1208,44 @@
 
     // Optimized batch DOM operations for page building
     function batchDOMOperations(target, operations) {
-        if (operations.length === 0) return;
+        logger.startTimer('batch-dom-operations');
+        logger.log(`Starting batch DOM operations: ${operations.length} operations`, {
+            targetElement: target.tagName + (target.className ? '.' + target.className : '') + (target.id ? '#' + target.id : ''),
+            operationCount: operations.length
+        }, 'DOM');
+
+        if (operations.length === 0) {
+            logger.log('No operations to perform, exiting early', null, 'DOM');
+            return;
+        }
 
         const fragment = document.createDocumentFragment();
+        logger.log('Created document fragment for batch operations', null, 'DOM');
 
-        operations.forEach(op => {
+        operations.forEach((op, index) => {
             if (typeof op === 'function') {
+                logger.log(`Executing function operation ${index + 1}/${operations.length}`, null, 'DOM');
                 op(fragment);
             } else if (op.element && op.method) {
+                logger.log(`Executing element operation ${index + 1}/${operations.length}: ${op.method}`, {
+                    elementTag: op.element.tagName,
+                    method: op.method
+                }, 'DOM');
                 fragment[op.method](op.element);
+            } else {
+                logger.warn(`Unknown operation type at index ${index}:`, op, 'DOM');
             }
         });
 
         if (fragment.children.length > 0) {
+            logger.log(`Appending ${fragment.children.length} elements to target`, null, 'DOM');
             target.appendChild(fragment);
+            logger.success(`Batch DOM operations completed: ${operations.length} operations, ${fragment.children.length} elements added`, null, 'DOM');
+        } else {
+            logger.log('No elements to append, fragment was empty', null, 'DOM');
         }
+
+        logger.endTimer('batch-dom-operations');
     }
 
     // Expose functions globally for manual loading
@@ -1415,6 +1552,10 @@
         },
         setLogLevel: function(level) {
             logger.setLevel(level);
+        },
+        disableLoggingExceptErrors: function() {
+            logger.setLevel('ERROR');
+            logger.info('Logging disabled - only errors will be shown', null, 'GENERAL');
         },
         getLogHistory: function(level) {
             return logger.getHistory(level);
