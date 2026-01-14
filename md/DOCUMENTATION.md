@@ -246,68 +246,340 @@ HTMLComponents.enableDebug();
 
 ## Page Building
 
-### buildPage(pageDefinition, targetElement, clearTarget)
-Build an entire page from component definitions.
+Build complete pages dynamically using component definitions. This is perfect for SPAs, admin panels, or any application that needs dynamic page construction.
+
+### buildPage(pageDefinition, targetElement, clearTarget, cacheOptions)
+Build an entire page from component definitions with caching support.
 
 ```javascript
-// Simple array format
-const page = ['header.html', 'content.html', 'footer.html'];
-HTMLComponents.buildPage(page, 'body', true);
+// Returns a Promise that resolves with results array
+HTMLComponents.buildPage(pageDefinition, 'body', true)
+    .then(results => {
+        console.log('Page built with', results.length, 'components');
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed > 0) console.warn(`${failed} components failed to load`);
+    })
+    .catch(error => console.error('Page build failed:', error));
+```
 
-// Enhanced object format
+### Page Definition Formats
+
+#### Simple Array Format
+Just list component file paths:
+
+```javascript
+const page = [
+    'components/header.html',
+    'components/sidebar.html',
+    'components/content.html',
+    'components/footer.html'
+];
+
+HTMLComponents.buildPage(page, 'body', true);
+```
+
+#### Enhanced Object Format
+Full control with metadata and advanced features:
+
+```javascript
 const page = {
-    title: 'My Website',
-    description: 'Page description for SEO',
-    styles: ['styles/main.css', 'styles/page.css'],
-    components: [
+    title: 'Dashboard - My App',           // Sets document.title
+    description: 'Admin dashboard page',   // Sets meta description
+    styles: [                              // Auto-load CSS files
+        'styles/dashboard.css',
+        'styles/components.css'
+    ],
+    components: [                          // Component definitions
         'components/header.html',
-        {
-            name: 'hero-section',
-            props: { title: 'Welcome' },
-            css: ['hero', 'centered']
-        },
-        'components/footer.html'
-    ]
+        'components/sidebar.html',
+        'components/dashboard-content.html'
+    ],
+    cacheKey: 'dashboard_v1',              // Optional cache key
+    cache: true                            // Enable/disable caching (default: true)
 };
+
 HTMLComponents.buildPage(page, 'body', true);
 ```
 
 ### Component Definitions
 
-Components can have props, CSS classes, IDs, and conditional loading:
+Components can be simple file paths or detailed objects with advanced features:
 
+#### Basic Component (File Path)
+```javascript
+'components/header.html'
+```
+
+#### Advanced Component Object
 ```javascript
 {
-    name: 'hero-section',           // Component file or registered component
-    props: {                        // Data passed to component
-        title: 'Welcome',
-        subtitle: 'Hello World'
+    name: 'user-profile',              // Component file path
+    selector: '#profile-container',    // Target specific element (optional)
+    props: {                           // Data passed to component
+        userId: 123,
+        showAvatar: true,
+        theme: 'dark'
     },
-    css: ['hero', 'centered'],      // CSS classes to add
-    id: 'main-hero',                // ID to set
-    condition: () => window.innerWidth > 768  // Load conditionally
+    css: ['profile', 'rounded'],       // CSS classes to add
+    id: 'main-profile',                // ID to set on container
+    condition: () => isLoggedIn(),     // Conditional loading
+    layout: 'section'                  // Wrap in HTML element
 }
+```
+
+### Props and Data Binding
+
+Pass data to components using props. Components can access props via template syntax:
+
+**dashboard-content.html**
+```html
+<div class="dashboard">
+    <h1>Welcome back, {{userName}}!</h1>
+    <div class="stats">
+        <div class="stat">Posts: {{postCount}}</div>
+        <div class="stat">Followers: {{followerCount}}</div>
+    </div>
+    <div class="{{theme}}-theme">
+        <!-- Component content -->
+    </div>
+</div>
+```
+
+**JavaScript**
+```javascript
+const page = {
+    components: [{
+        name: 'dashboard-content.html',
+        props: {
+            userName: 'John Doe',
+            postCount: 42,
+            followerCount: 1337,
+            theme: 'dark'
+        }
+    }]
+};
+```
+
+### Conditional Components
+
+Load components based on conditions:
+
+```javascript
+const page = {
+    components: [
+        'components/header.html',
+        {
+            name: 'admin-panel.html',
+            condition: () => currentUser.isAdmin
+        },
+        {
+            name: 'user-settings.html',
+            condition: () => window.innerWidth > 768 // Desktop only
+        },
+        'components/footer.html'
+    ]
+};
 ```
 
 ### Layout Sections
 
-Create structured layouts with automatic HTML elements:
+Create structured layouts with semantic HTML elements:
 
+#### Simple Layout
 ```javascript
 {
     layout: 'header',               // Creates <header> element
     children: ['nav.html', 'logo.html']
 }
+```
 
-// Or with full control
+#### Advanced Layout with Full Control
+```javascript
 {
     layout: {
-        class: 'sidebar',
-        id: 'main-sidebar',
-        attrs: { 'data-theme': 'dark' }
+        tag: 'aside',               // Element type
+        class: 'sidebar',           // CSS classes
+        id: 'main-sidebar',         // Element ID
+        attrs: {                    // Additional attributes
+            'data-theme': 'dark',
+            'aria-label': 'Navigation'
+        },
+        styles: {                   // Inline styles
+            width: '250px',
+            position: 'fixed'
+        }
     },
-    children: ['user-profile.html', 'menu.html']
+    children: ['user-profile.html', 'menu.html', 'settings.html']
 }
+```
+
+### Selector Targeting
+
+Place components in specific DOM elements instead of appending to target:
+
+```javascript
+const page = {
+    components: [
+        {
+            name: 'header.html',
+            selector: '#header-container'    // Places in specific element
+        },
+        {
+            name: 'sidebar.html',
+            selector: '.sidebar'            // Uses class selector
+        },
+        {
+            name: 'content.html',
+            selector: '#main-content'       // Uses ID selector
+        }
+    ]
+};
+
+// Without selector, components append to the targetElement
+HTMLComponents.buildPage(page, 'body', false); // Won't clear body, just append
+```
+
+### Page Building with Caching
+
+Control caching behavior for performance:
+
+```javascript
+// Disable caching for this page
+HTMLComponents.buildPage(pageDefinition, 'body', true, {
+    enabled: false
+});
+
+// Use custom cache key
+HTMLComponents.buildPage(pageDefinition, 'body', true, {
+    key: 'homepage_v2'
+});
+
+// Check cache stats
+const cacheStats = HTMLComponents.getPageCacheStats();
+console.log('Cached pages:', cacheStats.size);
+```
+
+### Practical Examples
+
+#### Blog Post Page
+```javascript
+const blogPostPage = {
+    title: post.title + ' - My Blog',
+    description: post.excerpt,
+    styles: ['styles/blog.css'],
+    components: [
+        'components/header.html',
+        {
+            name: 'blog-post.html',
+            props: {
+                title: post.title,
+                content: post.content,
+                author: post.author,
+                date: post.date,
+                tags: post.tags
+            },
+            css: ['blog-post']
+        },
+        'components/comments.html',
+        'components/footer.html'
+    ],
+    cacheKey: `blog-post-${post.id}`
+};
+
+HTMLComponents.buildPage(blogPostPage, 'body', true);
+```
+
+#### Admin Dashboard
+```javascript
+const adminDashboard = {
+    title: 'Admin Dashboard',
+    styles: ['styles/admin.css', 'styles/charts.css'],
+    components: [
+        'components/admin-header.html',
+        {
+            layout: {
+                tag: 'div',
+                class: 'admin-layout',
+                id: 'admin-container'
+            },
+            children: [
+                {
+                    name: 'admin-sidebar.html',
+                    css: ['admin-sidebar']
+                },
+                {
+                    name: 'dashboard-widgets.html',
+                    props: {
+                        userCount: stats.users,
+                        revenue: stats.revenue,
+                        alerts: alerts.list
+                    },
+                    css: ['dashboard-main']
+                }
+            ]
+        }
+    ],
+    condition: () => currentUser.role === 'admin'
+};
+
+HTMLComponents.buildPage(adminDashboard, 'body', true);
+```
+
+#### Responsive Page with Mobile/Desktop Variants
+```javascript
+const responsivePage = {
+    components: [
+        'components/header.html',
+        {
+            name: 'desktop-nav.html',
+            condition: () => window.innerWidth > 768,
+            css: ['desktop-only']
+        },
+        {
+            name: 'mobile-nav.html',
+            condition: () => window.innerWidth <= 768,
+            css: ['mobile-only']
+        },
+        'components/content.html',
+        'components/footer.html'
+    ]
+};
+```
+
+### Page Building Best Practices
+
+1. **Use meaningful cache keys** for pages that change frequently
+2. **Leverage conditional loading** to avoid loading unnecessary components
+3. **Use layouts** for consistent page structure
+4. **Pass data via props** instead of global variables
+5. **Clear target when rebuilding** pages to avoid duplicates
+6. **Handle build failures** with proper error checking
+
+### Integration with Routing
+
+Page building works great with client-side routing:
+
+```javascript
+function navigateTo(route) {
+    const pageConfig = getPageConfig(route); // Your routing logic
+    HTMLComponents.buildPage(pageConfig, '#app', true)
+        .then(() => {
+            // Update URL, scroll to top, etc.
+            history.pushState(null, '', route);
+            window.scrollTo(0, 0);
+        })
+        .catch(err => {
+            // Handle navigation errors
+            console.error('Navigation failed:', err);
+            // Maybe show error page
+            HTMLComponents.buildPage('components/404.html', '#app', true);
+        });
+}
+
+// Example usage
+navigateTo('/dashboard');
+navigateTo('/profile');
+navigateTo('/settings');
 ```
 
 ## Notifications
