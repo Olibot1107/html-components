@@ -1,9 +1,140 @@
-// HTML Components Library - Fixed Version
+// HTML Components Library - Fixed Version (with Advanced Logging)
 // Create entire websites from JavaScript component definitions
 // Supports dynamic image loading, component registries, and page building
 
 (function() {
     'use strict';
+
+    // ===== Logger =====
+    const logger = {
+        LEVELS: { DEBUG: 0, INFO: 1, SUCCESS: 2, WARN: 3, ERROR: 4, NONE: 5 },
+        currentLevel: 1,
+        debugMode: false,
+        timers: new Map(),
+        logHistory: [],
+        maxHistorySize: 50,
+
+        enableDebug: function() {
+            this.debugMode = true;
+            this.currentLevel = 0;
+            this.log('Debug mode enabled - showing all log messages', { level: 'DEBUG' });
+        },
+
+        disableDebug: function() {
+            this.debugMode = false;
+            this.currentLevel = 1;
+            this.log('Debug mode disabled', { level: 'INFO' });
+        },
+
+        setLevel: function(level) {
+            if (typeof level === 'string' && this.LEVELS[level.toUpperCase()] !== undefined) {
+                this.currentLevel = this.LEVELS[level.toUpperCase()];
+            } else if (typeof level === 'number' && level >= 0 && level <= 5) {
+                this.currentLevel = level;
+            }
+            this.log(`Log level set to: ${Object.keys(this.LEVELS)[this.currentLevel]}`, { level: 'INFO' });
+        },
+
+        getTimestamp: function() {
+            return new Date().toISOString();
+        },
+
+        formatMessage: function(level, message, data, category = 'GENERAL') {
+            const timestamp = this.getTimestamp();
+            const structuredLog = { timestamp, level: level.toUpperCase(), category, message, data: data || null };
+            this.logHistory.push(structuredLog);
+            if (this.logHistory.length > this.maxHistorySize) this.logHistory.shift();
+
+            if (this.debugMode && typeof Storage !== 'undefined') {
+                try {
+                    const logs = JSON.parse(localStorage.getItem('html-components-logs') || '[]');
+                    logs.push(structuredLog);
+                    if (logs.length > this.maxHistorySize) logs.shift();
+                    localStorage.setItem('html-components-logs', JSON.stringify(logs));
+                } catch (e) {}
+            }
+            return structuredLog;
+        },
+
+        shouldLog: function(level) {
+            return this.LEVELS[level.toUpperCase()] >= this.currentLevel;
+        },
+
+        getConsoleConfig: function(level) {
+            const configs = {
+                DEBUG: { method: 'debug', style: 'color: #6F42C1; font-weight: bold; background: #E7D9FF; padding: 3px 6px; border-radius: 4px;' },
+                INFO:  { method: 'info',  style: 'color: #055160; font-weight: bold; background: #CFF4FC; padding: 3px 6px; border-radius: 4px;' },
+                SUCCESS: { method: 'log', style: 'color: #0F5132; font-weight: bold; background: #D1E7DD; padding: 3px 6px; border-radius: 4px;' },
+                WARN:  { method: 'warn', style: 'color: #664D03; font-weight: bold; background: #FFF3CD; padding: 3px 6px; border-radius: 4px;' },
+                ERROR: { method: 'error',style: 'color: #842029; font-weight: bold; background: #F8D7DA; padding: 3px 6px; border-radius: 4px;' }
+            };
+            return configs[level.toUpperCase()] || configs.INFO;
+        },
+
+        log: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('DEBUG')) return;
+            const log = this.formatMessage('DEBUG', message, data, category);
+            const cfg = this.getConsoleConfig('DEBUG');
+            console[cfg.method](`%c[HTML Components ${log.level}]%c ${log.timestamp} ${log.message}`, cfg.style, 'color: #FFF; font-weight: bold;', log.data || '');
+        },
+
+        info: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('INFO')) return;
+            const log = this.formatMessage('INFO', message, data, category);
+            const cfg = this.getConsoleConfig('INFO');
+            console[cfg.method](`%c[HTML Components ${log.level}]%c ${log.message}`, cfg.style, 'color: #FFF; font-weight: bold;', log.data || '');
+            if (message.includes('initialized') || message.includes('completed')) {
+                notificationSystem.info(message);
+            }
+        },
+
+        success: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('SUCCESS')) return;
+            const log = this.formatMessage('SUCCESS', message, data, category);
+            const cfg = this.getConsoleConfig('SUCCESS');
+            console[cfg.method](`%c[HTML Components ${log.level}]%c ${log.message}`, cfg.style, 'color: #FFF; font-weight: bold;', log.data || '');
+        },
+
+        warn: function(message, data, category = 'GENERAL') {
+            if (!this.shouldLog('WARN')) return;
+            const log = this.formatMessage('WARN', message, data, category);
+            const cfg = this.getConsoleConfig('WARN');
+            console[cfg.method](`%c[HTML Components ${log.level}]%c ${log.message}`, cfg.style, 'color: #FFF; font-weight: bold;', log.data || '');
+        },
+
+        error: function(message, error, category = 'GENERAL') {
+            if (!this.shouldLog('ERROR')) return;
+            const errorContext = error ? { message: error.message, name: error.name, stack: error.stack } : null;
+            const log = this.formatMessage('ERROR', message, errorContext, category);
+            const cfg = this.getConsoleConfig('ERROR');
+            console[cfg.method](`%c[HTML Components ${log.level}]%c ${log.message}`, cfg.style, 'color: #FFF; font-weight: bold;');
+            if (error) console[cfg.method](error);
+            notificationSystem.error(message, error);
+        },
+
+        startTimer: function(label, category = 'PERFORMANCE') {
+            this.timers.set(label, performance.now());
+            if (this.shouldLog('DEBUG')) this.log(`Timer started: ${label}`, null, category);
+        },
+
+        endTimer: function(label, category = 'PERFORMANCE') {
+            const start = this.timers.get(label);
+            if (!start) return null;
+            const duration = performance.now() - start;
+            this.timers.delete(label);
+            if (this.shouldLog('DEBUG')) this.log(`Timer ended: ${label} (${duration.toFixed(2)}ms)`, { duration }, category);
+            return duration;
+        },
+
+        getHistory: function(level) {
+            return level ? this.logHistory.filter(l => l.level === level.toUpperCase()) : [...this.logHistory];
+        },
+
+        clearHistory: function() {
+            this.logHistory = [];
+            if (typeof Storage !== 'undefined') localStorage.removeItem('html-components-logs');
+        }
+    };
 
     // ===== Notification System =====
     const notificationSystem = {
@@ -24,6 +155,7 @@
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 `;
                 document.body.appendChild(this.container);
+                logger.log('Notification system initialized', null, 'NOTIFICATION');
             }
         },
 
@@ -44,13 +176,14 @@
             if (this.container && this.container.children.length === 0 && this.container.parentElement) {
                 this.container.remove();
                 this.container = null;
+                logger.log('Notification container removed - no notifications remaining', null, 'NOTIFICATION');
             }
         },
 
         show: function(type, title, message, details = null, suggestions = []) {
             this.init();
             const notification = this.getNotification();
-            
+
             const colors = {
                 error: { border: '#dc3545', bg: '#f8d7da', text: '#721c24' },
                 warning: { border: '#ffc107', bg: '#fff3cd', text: '#856404' },
@@ -111,108 +244,6 @@
         }
     };
 
-    // ===== Logger =====
-    const logger = {
-        LEVELS: { DEBUG: 0, INFO: 1, SUCCESS: 2, WARN: 3, ERROR: 4, NONE: 5 },
-        currentLevel: 1,
-        debugMode: false,
-        timers: new Map(),
-        logHistory: [],
-        maxHistorySize: 50,
-
-        enableDebug: function() {
-            this.debugMode = true;
-            this.currentLevel = 0;
-        },
-
-        disableDebug: function() {
-            this.debugMode = false;
-            this.currentLevel = 1;
-        },
-
-        setLevel: function(level) {
-            if (typeof level === 'string' && this.LEVELS[level.toUpperCase()] !== undefined) {
-                this.currentLevel = this.LEVELS[level.toUpperCase()];
-            } else if (typeof level === 'number' && level >= 0 && level <= 5) {
-                this.currentLevel = level;
-            }
-        },
-
-        shouldLog: function(level) {
-            return this.LEVELS[level.toUpperCase()] >= this.currentLevel;
-        },
-
-        formatMessage: function(level, message, data) {
-            const log = {
-                timestamp: new Date().toISOString(),
-                level: level.toUpperCase(),
-                message,
-                data: data || null
-            };
-            
-            this.logHistory.push(log);
-            if (this.logHistory.length > this.maxHistorySize) {
-                this.logHistory.shift();
-            }
-            
-            return log;
-        },
-
-        log: function(message, data) {
-            if (!this.shouldLog('DEBUG')) return;
-            const log = this.formatMessage('DEBUG', message, data);
-            console.debug(`[HTML Components] ${log.message}`, log.data || '');
-        },
-
-        info: function(message, data) {
-            if (!this.shouldLog('INFO')) return;
-            const log = this.formatMessage('INFO', message, data);
-            console.info(`[HTML Components] ${log.message}`, log.data || '');
-        },
-
-        success: function(message, data) {
-            if (!this.shouldLog('SUCCESS')) return;
-            const log = this.formatMessage('SUCCESS', message, data);
-            console.log(`[HTML Components] ✓ ${log.message}`, log.data || '');
-        },
-
-        warn: function(message, data) {
-            if (!this.shouldLog('WARN')) return;
-            const log = this.formatMessage('WARN', message, data);
-            console.warn(`[HTML Components] ${log.message}`, log.data || '');
-            notificationSystem.warning(message, ['Check the browser console for details']);
-        },
-
-        error: function(message, error) {
-            if (!this.shouldLog('ERROR')) return;
-            const log = this.formatMessage('ERROR', message, { error: error?.message });
-            console.error(`[HTML Components] ${log.message}`, error || '');
-            notificationSystem.error(message, error);
-        },
-
-        startTimer: function(label) {
-            this.timers.set(label, performance.now());
-        },
-
-        endTimer: function(label) {
-            const start = this.timers.get(label);
-            if (start) {
-                const duration = performance.now() - start;
-                this.timers.delete(label);
-                return duration;
-            }
-            return null;
-        },
-
-        getHistory: function(level) {
-            return level ? this.logHistory.filter(log => log.level === level.toUpperCase()) : [...this.logHistory];
-        },
-
-        clearHistory: function() {
-            this.logHistory = [];
-        }
-    };
-
     // ===== Caching System =====
     const pageCache = {
         enabled: true,
@@ -221,19 +252,27 @@
         set: function(key, content) {
             if (this.enabled) {
                 this.cache.set(key, { content, timestamp: Date.now() });
+                logger.log('Page cached:', key, 'CACHE');
             }
         },
 
         get: function(key) {
-            return this.enabled && this.cache.has(key) ? this.cache.get(key).content : null;
+            if (!this.enabled) return null;
+            const cached = this.cache.get(key);
+            if (cached) {
+                logger.success('Page loaded from cache:', key, 'CACHE');
+                return cached.content;
+            }
+            return null;
         },
 
         clear: function() {
             this.cache.clear();
+            logger.info('Page cache cleared', null, 'CACHE');
         },
 
-        enable: function() { this.enabled = true; },
-        disable: function() { this.enabled = false; }
+        enable: function() { this.enabled = true; logger.info('Page caching enabled', null, 'CACHE'); },
+        disable: function() { this.enabled = false; logger.info('Page caching disabled', null, 'CACHE'); }
     };
 
     const fileCache = {
@@ -243,19 +282,27 @@
         set: function(key, content) {
             if (this.enabled) {
                 this.cache.set(key, { content, timestamp: Date.now() });
+                logger.log('File cached:', key, 'CACHE');
             }
         },
 
         get: function(key) {
-            return this.enabled && this.cache.has(key) ? this.cache.get(key).content : null;
+            if (!this.enabled) return null;
+            const cached = this.cache.get(key);
+            if (cached) {
+                logger.success('File loaded from cache:', key, 'CACHE');
+                return cached.content;
+            }
+            return null;
         },
 
         clear: function() {
             this.cache.clear();
+            logger.info('File cache cleared', null, 'CACHE');
         },
 
-        enable: function() { this.enabled = true; },
-        disable: function() { this.enabled = false; }
+        enable: function() { this.enabled = true; logger.info('File caching enabled', null, 'CACHE'); },
+        disable: function() { this.enabled = false; logger.info('File caching disabled', null, 'CACHE'); }
     };
 
     // ===== Image Loading =====
@@ -265,20 +312,25 @@
         load: function(src, options = {}) {
             return new Promise((resolve, reject) => {
                 if (this.cache.has(src)) {
+                    logger.success('Image loaded from cache:', src, 'IMAGE');
                     resolve(this.cache.get(src));
                     return;
                 }
 
+                logger.log('Loading image:', src, 'IMAGE');
                 const img = new Image();
                 if (options.crossOrigin) img.crossOrigin = options.crossOrigin;
 
                 img.onload = () => {
                     this.cache.set(src, img);
+                    logger.success('Image loaded successfully:', src, 'IMAGE');
                     resolve(img);
                 };
 
                 img.onerror = () => {
-                    reject(new Error(`Failed to load image: ${src}`));
+                    const err = new Error(`Failed to load image: ${src}`);
+                    logger.error('Image load failed:', err, 'IMAGE');
+                    reject(err);
                 };
 
                 img.src = src;
@@ -286,33 +338,38 @@
         },
 
         preload: function(sources) {
-            const promises = sources.map(src => 
-                this.load(src).catch(() => null)
-            );
-            return Promise.allSettled(promises);
+            logger.log('Preloading images:', sources.length, 'IMAGE');
+            const promises = sources.map(src => this.load(src).catch(() => null));
+            return Promise.allSettled(promises).then(results => {
+                const success = results.filter(r => r.status === 'fulfilled').length;
+                logger.log(`Image preloading complete: ${success}/${sources.length} successful`, null, 'IMAGE');
+                return results;
+            });
         }
     };
 
     // ===== Component Loader =====
     const loadingComponents = new Set();
-    const executedScripts = new Map();
 
     function loadComponentIntoElement(element, componentPath, props = {}) {
         if (loadingComponents.has(componentPath)) {
+            logger.warn('Component already loading - skipping to prevent loop:', componentPath, 'COMPONENT');
             return Promise.resolve();
         }
 
         loadingComponents.add(componentPath);
-        logger.startTimer(`load-${componentPath}`);
+        logger.startTimer(`load-${componentPath}`, 'COMPONENT');
+        logger.log('Loading component:', componentPath, 'COMPONENT');
 
         const cachedContent = fileCache.get(componentPath);
         if (cachedContent) {
+            logger.success('Component loaded from file cache:', componentPath, 'COMPONENT');
             element.innerHTML = processTemplate(cachedContent, props);
             bindEventHandlers(element);
             return loadNestedComponents(element).then(() => {
                 executeScripts(element);
                 loadingComponents.delete(componentPath);
-                logger.endTimer(`load-${componentPath}`);
+                logger.endTimer(`load-${componentPath}`, 'COMPONENT');
                 return cachedContent;
             });
         }
@@ -327,17 +384,18 @@
                 fileCache.set(componentPath, html);
                 element.innerHTML = html;
                 bindEventHandlers(element);
-                
+
                 return loadNestedComponents(element).then(() => {
                     executeScripts(element);
                     loadingComponents.delete(componentPath);
-                    logger.endTimer(`load-${componentPath}`);
+                    const duration = logger.endTimer(`load-${componentPath}`, 'COMPONENT');
+                    logger.success(`Component loaded: ${componentPath} (${duration?.toFixed(2)}ms)`, null, 'COMPONENT');
                     return html;
                 });
             })
             .catch(error => {
                 loadingComponents.delete(componentPath);
-                logger.error(`Failed to load component "${componentPath}"`, error);
+                logger.error(`Failed to load component "${componentPath}"`, error, 'COMPONENT');
                 element.innerHTML = `<div style="color: red; padding: 1rem; border: 1px solid red; background: #ffe6e6;">
                     <strong>Component Load Error:</strong> ${componentPath}<br>
                     <small>${error.message}</small>
@@ -349,8 +407,14 @@
     function loadNestedComponents(container) {
         const nestedCSS = container.querySelectorAll('[data-css]');
         const cssPromises = Array.from(nestedCSS).map(el => {
-            const cssPath = el.getAttribute('data-css');
-            return cssPath ? loadCSS(cssPath).catch(() => null) : Promise.resolve();
+            const path = el.getAttribute('data-css');
+            return path ? loadCSS(path).catch(() => null) : Promise.resolve();
+        });
+
+        const nestedJS = container.querySelectorAll('[data-js]');
+        const jsPromises = Array.from(nestedJS).map(el => {
+            const path = el.getAttribute('data-js');
+            return path ? HTMLComponents.loadJS(path).catch(() => null) : Promise.resolve();
         });
 
         const nestedComponents = container.querySelectorAll('[data-component]');
@@ -359,28 +423,22 @@
             return path ? loadComponentIntoElement(el, path).catch(() => null) : Promise.resolve();
         });
 
-        return Promise.allSettled([...cssPromises, ...componentPromises]);
+        return Promise.allSettled([...cssPromises, ...jsPromises, ...componentPromises]);
     }
 
     // ===== Event Binding =====
     const supportedEvents = {
-        'click': 'data-click',
-        'dblclick': 'data-dblclick',
-        'mouseenter': 'data-mouseenter',
-        'mouseleave': 'data-mouseleave',
-        'focus': 'data-focus',
-        'blur': 'data-blur',
-        'change': 'data-change',
-        'input': 'data-input',
-        'submit': 'data-submit',
-        'keydown': 'data-keydown',
-        'keyup': 'data-keyup'
+        'click': 'data-click', 'dblclick': 'data-dblclick', 'mouseenter': 'data-mouseenter',
+        'mouseleave': 'data-mouseleave', 'focus': 'data-focus', 'blur': 'data-blur',
+        'change': 'data-change', 'input': 'data-input', 'submit': 'data-submit',
+        'keydown': 'data-keydown', 'keyup': 'data-keyup'
     };
 
     function bindEventHandlers(container) {
         const selector = Object.values(supportedEvents).map(attr => `[${attr}]`).join(', ');
         const elements = container.querySelectorAll(selector);
 
+        let boundCount = 0;
         elements.forEach(element => {
             Object.entries(supportedEvents).forEach(([eventType, dataAttr]) => {
                 const methodName = element.getAttribute(dataAttr);
@@ -389,18 +447,24 @@
                         if (typeof window[methodName] === 'function') {
                             try {
                                 window[methodName](event, element);
+                                logger.log(`Event ${eventType} executed method: ${methodName}`, null, 'EVENTS');
                             } catch (error) {
-                                logger.error(`Error executing ${methodName}`, error);
+                                logger.error(`Error executing ${methodName}`, error, 'EVENTS');
                                 event.preventDefault();
                             }
                         } else {
-                            logger.error(`Method ${methodName} not found`);
+                            logger.error(`Method ${methodName} not found`, null, 'EVENTS');
                         }
                     });
                     element.dataset[`bound_${eventType}`] = 'true';
+                    boundCount++;
                 }
             });
         });
+
+        if (boundCount > 0) {
+            logger.info(`Bound ${boundCount} event handler(s)`, null, 'EVENTS');
+        }
     }
 
     // ===== Template Processing =====
@@ -425,17 +489,22 @@
         const scripts = container.querySelectorAll('script');
         if (scripts.length === 0) return;
 
+        logger.log(`Starting to execute ${scripts.length} script(s) in container`, null, 'SCRIPT');
+
         scripts.forEach(script => {
+            logger.log(`Found script: ${script.src ? 'external (' + script.src + ')' : 'inline'}`, null, 'SCRIPT');
             if (script.src) {
                 const newScript = document.createElement('script');
                 newScript.src = script.src;
                 newScript.async = false;
                 document.head.appendChild(newScript);
+                logger.log(`External script added: ${script.src}`, null, 'SCRIPT');
             } else if (script.textContent.trim()) {
                 try {
                     (0, eval)(script.textContent);
+                    logger.log('Inline script executed', null, 'SCRIPT');
                 } catch (e) {
-                    logger.error('Error executing inline script', e);
+                    logger.error('Error executing inline script', e, 'SCRIPT');
                 }
             }
         });
@@ -446,6 +515,7 @@
         return new Promise((resolve, reject) => {
             const existing = document.querySelector(`link[href="${href}"]`);
             if (existing) {
+                logger.success('CSS already loaded:', href, 'CSS');
                 resolve(existing);
                 return;
             }
@@ -456,6 +526,7 @@
                 style.setAttribute('data-cached-css', href);
                 style.textContent = cachedCSS;
                 document.head.appendChild(style);
+                logger.success('CSS loaded from cache:', href, 'CSS');
                 resolve(style);
                 return;
             }
@@ -467,179 +538,147 @@
             if (options.media) link.media = options.media;
 
             link.onload = () => {
-                fetch(href)
-                    .then(r => r.ok ? r.text() : null)
+                fetch(href).then(r => r.ok ? r.text() : null)
                     .then(css => { if (css) fileCache.set(href, css); })
                     .catch(() => {});
+                logger.success('CSS loaded:', href, 'CSS');
                 resolve(link);
             };
 
-            link.onerror = () => reject(new Error(`Failed to load CSS: ${href}`));
+            link.onerror = () => {
+                logger.error('Failed to load CSS:', href, 'CSS');
+                reject(new Error(`Failed to load CSS: ${href}`));
+            };
+
             document.head.appendChild(link);
         });
     }
 
     // ===== Initialization =====
     document.addEventListener('DOMContentLoaded', function() {
+        logger.log('DOM loaded - initializing components', null, 'INIT');
+
         const jsElements = document.querySelectorAll('[data-js]');
-        const jsPromises = Array.from(jsElements).map(el => {
-            const path = el.getAttribute('data-js');
-            return path ? HTMLComponents.loadJS(path).catch(() => null) : Promise.resolve();
-        });
-
         const cssElements = document.querySelectorAll('[data-css]');
-        const cssPromises = Array.from(cssElements).map(el => {
-            const path = el.getAttribute('data-css');
-            return path ? loadCSS(path).catch(() => null) : Promise.resolve();
-        });
-
         const components = document.querySelectorAll('[data-component]');
-        const componentPromises = Array.from(components).map(el => {
-            const path = el.getAttribute('data-component');
-            return path ? loadComponentIntoElement(el, path) : Promise.resolve();
-        });
 
-        Promise.allSettled([...jsPromises, ...cssPromises, ...componentPromises]).then(() => {
+        const promises = [
+            ...Array.from(jsElements).map(el => {
+                const path = el.getAttribute('data-js');
+                return path ? HTMLComponents.loadJS(path).catch(() => null) : Promise.resolve();
+            }),
+            ...Array.from(cssElements).map(el => {
+                const path = el.getAttribute('data-css');
+                return path ? loadCSS(path).catch(() => null) : Promise.resolve();
+            }),
+            ...Array.from(components).map(el => {
+                const path = el.getAttribute('data-component');
+                return path ? loadComponentIntoElement(el, path) : Promise.resolve();
+            })
+        ];
+
+        Promise.allSettled(promises).then(() => {
             bindEventHandlers(document.body);
+            logger.success('Initial component loading completed', null, 'INIT');
         });
     });
 
     // ===== Page Building =====
     function buildPageFromComponents(pageDef, targetElement = 'body', clearTarget = false) {
-        logger.startTimer('build-page');
-        
+        logger.startTimer('build-page', 'PAGE');
+        logger.info('Building page from definition', null, 'PAGE');
+
         const target = document.querySelector(targetElement);
-        if (!target) {
-            return Promise.reject(new Error('Target element not found'));
-        }
+        if (!target) return Promise.reject(new Error('Target element not found'));
 
         let components = Array.isArray(pageDef) ? pageDef : pageDef.components || [];
-        let meta = {};
-
-        if (!Array.isArray(pageDef)) {
-            meta = {
-                title: pageDef.title,
-                description: pageDef.description,
-                styles: pageDef.styles || []
-            };
-        }
+        let meta = !Array.isArray(pageDef) ? { title: pageDef.title, description: pageDef.description, styles: pageDef.styles || [] } : {};
 
         const cacheKey = pageDef.cacheKey || JSON.stringify(components).substring(0, 50);
-        const cachedContent = pageCache.get(cacheKey);
-        
-        if (cachedContent) {
-            target.innerHTML = cachedContent;
-            return Promise.resolve([{ status: 'fulfilled', value: 'loaded-from-cache' }]);
+        const cached = pageCache.get(cacheKey);
+        if (cached) {
+            target.innerHTML = cached;
+            logger.success('Page loaded from cache', null, 'PAGE');
+            return Promise.resolve();
         }
 
-        if (clearTarget || target.innerHTML.trim() === '') {
-            target.innerHTML = '';
-        }
+        if (clearTarget || target.innerHTML.trim() === '') target.innerHTML = '';
 
-        if (meta.styles) {
-            meta.styles.forEach(url => loadCSS(url).catch(() => {}));
-        }
-
+        if (meta.styles) meta.styles.forEach(url => loadCSS(url).catch(() => {}));
         if (meta.title) document.title = meta.title;
-        
         if (meta.description) {
-            let metaDesc = document.querySelector('meta[name="description"]');
-            if (!metaDesc) {
-                metaDesc = document.createElement('meta');
-                metaDesc.name = 'description';
-                document.head.appendChild(metaDesc);
-            }
-            metaDesc.content = meta.description;
+            let desc = document.querySelector('meta[name="description"]') || document.createElement('meta');
+            desc.name = 'description'; desc.content = meta.description;
+            if (!desc.parentElement) document.head.appendChild(desc);
         }
 
         const promises = components.map(comp => processComponentDefinition(comp, target));
 
         return Promise.allSettled(promises).then(results => {
-            logger.endTimer('build-page');
+            const duration = logger.endTimer('build-page', 'PAGE');
+            logger.success(`Page built in ${duration?.toFixed(2)}ms`, null, 'PAGE');
             pageCache.set(cacheKey, target.innerHTML);
             return results;
         });
     }
 
     function processComponentDefinition(comp, target) {
-        if (typeof comp === 'string') {
-            return loadComponentIntoElement(target, comp);
-        }
+        if (typeof comp === 'string') return loadComponentIntoElement(target, comp);
 
-        if (typeof comp !== 'object') return Promise.resolve();
-
-        if (comp.condition !== undefined) {
-            const result = typeof comp.condition === 'function' ? comp.condition() : comp.condition;
-            if (!result) return Promise.resolve();
+        if (typeof comp !== 'object' || comp.condition !== undefined && !(typeof comp.condition === 'function' ? comp.condition() : comp.condition)) {
+            return Promise.resolve();
         }
 
         const { name, selector, props = {}, layout, children, css, id } = comp;
         let element = target;
 
         if (layout) {
-            const layoutClass = typeof layout === 'string' ? layout : layout.class || '';
-            const layoutId = typeof layout === 'string' ? '' : layout.id || '';
-            const layoutTag = typeof layout === 'object' ? layout.tag || 'section' : 'section';
-
-            element = document.createElement(layoutTag);
-            element.className = layoutClass;
-            if (layoutId) element.id = layoutId;
+            const tag = typeof layout === 'object' ? layout.tag || 'section' : 'section';
+            const cls = typeof layout === 'string' ? layout : layout.class || '';
+            const lid = typeof layout === 'object' ? layout.id || '' : '';
+            element = document.createElement(tag);
+            element.className = cls;
+            if (lid) element.id = lid;
             target.appendChild(element);
         } else if (selector) {
             element = document.querySelector(selector) || target;
         }
 
-        if (css) {
-            const classes = typeof css === 'string' ? css.split(' ') : css;
-            element.classList.add(...classes);
-        }
-
+        if (css) element.classList.add(...(typeof css === 'string' ? css.split(' ') : css));
         if (id) element.id = id;
 
-        const processedProps = {};
-        Object.entries(props).forEach(([key, value]) => {
-            processedProps[key] = typeof value === 'function' ? value() : value;
-        });
+        const processedProps = Object.fromEntries(Object.entries(props).map(([k, v]) => [k, typeof v === 'function' ? v() : v]));
 
         const promise = loadComponentIntoElement(element, name, processedProps);
 
-        if (children?.length) {
-            return promise.then(() => {
-                const childPromises = children.map(child => processComponentDefinition(child, element));
-                return Promise.allSettled(childPromises);
-            });
-        }
-
-        return promise;
+        return children?.length ? promise.then(() => Promise.allSettled(children.map(c => processComponentDefinition(c, element)))) : promise;
     }
 
     // ===== Global API =====
     window.HTMLComponents = {
         loadComponent: function(selector, path, props = {}) {
             const el = document.querySelector(selector);
-            return el ? loadComponentIntoElement(el, path, props) : 
-                Promise.reject(new Error('Element not found'));
+            return el ? loadComponentIntoElement(el, path, props) : Promise.reject(new Error('Element not found'));
         },
 
         toggleComponent: function(selector, show = null) {
             const el = document.querySelector(selector);
             if (!el) return false;
-            const isVisible = el.style.display !== 'none';
-            const shouldShow = show !== null ? show : !isVisible;
+            const shouldShow = show !== null ? show : el.style.display === 'none';
             el.style.display = shouldShow ? '' : 'none';
+            logger.log(`Component ${selector} ${shouldShow ? 'shown' : 'hidden'}`, null, 'TOGGLE');
             return shouldShow;
         },
 
-        showComponent: function(sel) { return this.toggleComponent(sel, true); },
-        hideComponent: function(sel) { return this.toggleComponent(sel, false); },
+        showComponent: sel => this.toggleComponent(sel, true),
+        hideComponent: sel => this.toggleComponent(sel, false),
 
         loadJS: function(src) {
             return new Promise((resolve, reject) => {
                 const existing = document.querySelector(`script[data-loaded-js="${src}"]`);
-                if (existing) {
-                    resolve(existing);
-                    return;
-                }
+                if (existing) return resolve(existing);
+
+                logger.log(`Starting to load JS: ${src}`, null, 'JS');
 
                 fetch(src)
                     .then(r => r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`)))
@@ -649,9 +688,13 @@
                         marker.setAttribute('data-loaded-js', src);
                         marker.style.display = 'none';
                         document.head.appendChild(marker);
+                        logger.success(`JS loaded: ${src}`, null, 'JS');
                         resolve(marker);
                     })
-                    .catch(reject);
+                    .catch(err => {
+                        logger.error(`Failed to load JS: ${src}`, err, 'JS');
+                        reject(err);
+                    });
             });
         },
 
@@ -672,15 +715,13 @@
         disableDebug: () => logger.disableDebug(),
         setLogLevel: level => logger.setLevel(level),
 
-        _checkNotificationContainer: () => notificationSystem.checkContainerRemoval(),
-
         replaceComponent: function(selector, path, props = {}) {
-            const element = document.querySelector(selector);
-            if (!element) {
-                return Promise.reject(new Error(`Element not found: ${selector}`));
-            }
-            return loadComponentIntoElement(element, path, props);
-        }
-    };
+            const el = document.querySelector(selector);
+            if (!el) return Promise.reject(new Error(`Element not found: ${selector}`));
+            return loadComponentIntoElement(el, path, props);
+        },
 
+        _checkNotificationContainer: () => notificationSystem.checkContainerRemoval()
+    };
+    logger.log('HTMLComponents library initialized', null, 'INIT');
 })();
