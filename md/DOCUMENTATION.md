@@ -151,27 +151,98 @@ HTMLComponents.loadComponent('#content', 'components/content.html')
 
 ### Template System
 
+HTML Components includes a powerful template system supporting variables, conditionals, loops, and expressions.
+
+#### Basic Variables
+
 Use `{{variable}}` syntax for dynamic content:
 
 **user-profile.html**
 ```html
 <div class="profile">
     <img src="{{avatar}}" alt="Avatar">
-    <h2>{{name}}</h2>
-    <p>{{bio}}</p>
-    <span class="role">{{role}}</span>
+    <h2>{{user.name}}</h2>
+    <p>{{user.bio}}</p>
+    <span class="role">{{user.role}}</span>
 </div>
 ```
 
 **Usage**
 ```javascript
 HTMLComponents.loadComponent('#profile', 'user-profile.html', {
-    name: 'Alice Johnson',
-    bio: 'Frontend Developer',
-    avatar: 'images/avatar.jpg',
-    role: 'Developer'
+    user: {
+        name: 'Alice Johnson',
+        bio: 'Frontend Developer',
+        avatar: 'images/avatar.jpg',
+        role: 'Developer'
+    }
 });
 ```
+
+#### Conditional Rendering
+
+Use `{{if condition}}...{{/if}}` for conditional content:
+
+```html
+<div class="user-status">
+    {{if user.isLoggedIn}}
+        <h1>Welcome back, {{user.name}}!</h1>
+        <button data-click="logout">Logout</button>
+    {{/if}}
+
+    {{if !user.isLoggedIn}}
+        <h1>Please log in</h1>
+        <button data-click="login">Login</button>
+    {{/if}}
+
+    {{if user.posts.length > 0}}
+        <p>You have {{user.posts.length}} posts</p>
+    {{/if}}
+</div>
+```
+
+#### Loops
+
+Use `{{each items as item}}...{{/each}}` for iteration:
+
+```html
+<ul class="user-list">
+    {{each users as user}}
+        <li class="user-item">
+            <span>{{user.name}} ({{user.age}} years old)</span>
+            <span>Index: {{index}}</span>
+        </li>
+    {{/each}}
+</ul>
+```
+
+**Loop Context:**
+- `{{user}}` - Current item value
+- `{{index}}` - Current index (0-based)
+- `{{$item}}` - Same as current item
+
+#### Template Expressions
+
+Use expressions for complex logic:
+
+```html
+<div class="dashboard">
+    {{if userCount > 10}}
+        <p>Large team: {{userCount}} members</p>
+    {{/if}}
+
+    {{if user.role === 'admin'}}
+        <div class="admin-panel">Admin Controls</div>
+    {{/if}}
+</div>
+```
+
+**Supported Expression Types:**
+- Property access: `user.name`, `user.profile.settings.theme`
+- Comparisons: `===`, `!==`, `<`, `>`, `<=`, `>=`
+- Logical operators: `&&`, `||`, `!`
+- Arithmetic: `+`, `-`, `*`, `/`
+- Array/Object access: `user.roles[0]`, `config.theme.primary`
 
 ### Event Binding
 
@@ -437,6 +508,363 @@ HTMLComponents.buildPage(page, 'body', true);
 - `clearTarget` (boolean, optional): Clear target before building (default: false)
 
 **Returns:** Promise that resolves with build results
+
+---
+
+## Enhanced Features
+
+### Reactive State Management
+
+HTML Components includes a built-in reactive state system for managing application data.
+
+#### Creating State
+
+```javascript
+// Create reactive state variables
+HTMLComponents.createState('userName', 'Anonymous');
+HTMLComponents.createState('userCount', 0);
+HTMLComponents.createState('isLoggedIn', false);
+HTMLComponents.createState('userList', ['Alice', 'Bob', 'Charlie']);
+```
+
+#### Getting and Setting State
+
+```javascript
+// Get state values
+const name = HTMLComponents.getState('userName');
+const count = HTMLComponents.getState('userCount');
+
+// Set state values (reactive!)
+HTMLComponents.setState('userName', 'John Doe');
+HTMLComponents.setState('userCount', count + 1);
+```
+
+#### Subscribing to State Changes
+
+```javascript
+// Listen for state changes
+HTMLComponents.subscribeState('userName', (newValue, oldValue) => {
+    console.log(`User name changed from ${oldValue} to ${newValue}`);
+    updateUI();
+});
+
+// Remove listener
+HTMLComponents.unsubscribeState('userName', callbackFunction);
+```
+
+#### Data Binding
+
+Bind DOM elements directly to state variables:
+
+```html
+<div id="user-display"></div>
+<span id="count-display"></span>
+```
+
+```javascript
+// Bind elements to state
+HTMLComponents.bindState('#user-display', 'userName', 'textContent');
+HTMLComponents.bindState('#count-display', 'userCount', 'textContent');
+
+// Now when state changes, elements update automatically!
+HTMLComponents.setState('userName', 'Jane Smith');
+HTMLComponents.setState('userCount', 42);
+```
+
+**Binding Properties:**
+- `'textContent'` - Set element text content
+- `'innerHTML'` - Set element HTML content
+- `'attr:data-value'` - Set element attribute
+- `'style:backgroundColor'` - Set CSS style property
+- `'class'` - Set element class name
+
+#### Computed State
+
+Create derived state that updates automatically:
+
+```javascript
+// Create computed state
+HTMLComponents.computedState('userGreeting', ['userName'], (name) => {
+    return `Hello, ${name}!`;
+});
+
+HTMLComponents.computedState('totalUsers', ['userList'], (list) => {
+    return list.length;
+});
+```
+
+---
+
+### Enhanced Template System
+
+Templates now support conditionals, loops, and expressions.
+
+#### Conditional Rendering
+
+```html
+<div class="user-info">
+    {{if isLoggedIn}}
+        <h1>Welcome back, {{userName}}!</h1>
+        <button data-click="logout">Logout</button>
+    {{/if}}
+
+    {{if !isLoggedIn}}
+        <h1>Please log in</h1>
+        <button data-click="login">Login</button>
+    {{/if}}
+</div>
+```
+
+#### Loops
+
+```html
+<ul class="user-list">
+    {{each userList as user}}
+        <li class="user-item">
+            <span>{{user}}</span>
+            <button data-click="removeUser" data-user="{{user}}">Remove</button>
+        </li>
+    {{/each}}
+</ul>
+```
+
+**Loop Context:**
+- `{{user}}` - Current item value
+- `{{index}}` - Current index (0-based)
+- `{{$item}}` - Same as current item
+
+#### Template Expressions
+
+```html
+<div class="status">
+    {{if userCount > 0}}
+        <p>You have {{userCount}} users</p>
+    {{/if}}
+
+    {{if userName === 'Admin'}}
+        <p>You have admin privileges</p>
+    {{/if}}
+</div>
+```
+
+#### Loading Components with State
+
+```javascript
+// Load component with both props and state access
+HTMLComponents.loadComponentWithState('#app', 'components/dashboard.html', {
+    title: 'Dashboard'
+}, {
+    userName: 'John',
+    userCount: 5,
+    isLoggedIn: true
+});
+```
+
+---
+
+### Component Events System
+
+Components can communicate through a global event system.
+
+#### Emitting Events
+
+```javascript
+function loginUser(event, element) {
+    // Perform login logic...
+    const userData = { id: 123, name: 'John' };
+
+    // Emit event to notify other components
+    HTMLComponents.emitEvent('user-logged-in', userData, element);
+}
+```
+
+#### Listening to Events
+
+```javascript
+// Listen for component events
+HTMLComponents.onEvent('user-logged-in', (data, source) => {
+    console.log('User logged in:', data.name);
+    HTMLComponents.setState('currentUser', data);
+    HTMLComponents.setState('isLoggedIn', true);
+});
+
+// Remove listener
+HTMLComponents.offEvent('user-logged-in', callbackFunction);
+```
+
+#### Cross-Component Communication
+
+**user-menu.html**
+```html
+<div class="user-menu">
+    <button data-click="logout">Logout</button>
+</div>
+
+<script>
+function logout(event, element) {
+    HTMLComponents.emitEvent('user-logout-requested');
+}
+</script>
+```
+
+**app.html**
+```javascript
+// In your main app logic
+HTMLComponents.onEvent('user-logout-requested', () => {
+    // Handle logout
+    HTMLComponents.setState('currentUser', null);
+    HTMLComponents.setState('isLoggedIn', false);
+    HTMLComponents.loadComponent('#app', 'components/login.html');
+});
+```
+
+---
+
+### Component Lifecycle Hooks
+
+Control what happens during component loading.
+
+#### Available Hooks
+
+- `beforeLoad` - Called before component starts loading
+- `afterLoad` - Called after component loads successfully
+- `onError` - Called when component fails to load
+
+#### Adding Lifecycle Hooks
+
+```javascript
+// Add hook for specific component
+HTMLComponents.addLifecycleHook('components/user-profile.html', 'beforeLoad', (element, data) => {
+    console.log('Loading user profile...');
+    // Show loading spinner
+    element.innerHTML = '<div class="loading">Loading...</div>';
+});
+
+HTMLComponents.addLifecycleHook('components/user-profile.html', 'afterLoad', (element, data) => {
+    console.log('User profile loaded!');
+    // Initialize component-specific logic
+    initUserProfile();
+});
+
+HTMLComponents.addLifecycleHook('components/user-profile.html', 'onError', (element, data) => {
+    console.error('Failed to load user profile:', data.error);
+    // Show error message
+    element.innerHTML = '<div class="error">Failed to load profile</div>';
+});
+```
+
+#### Global Hooks
+
+```javascript
+// Add hooks for all components
+HTMLComponents.addLifecycleHook('*', 'beforeLoad', (element, data) => {
+    // Global loading indicator
+    showGlobalLoader();
+});
+
+HTMLComponents.addLifecycleHook('*', 'afterLoad', (element, data) => {
+    hideGlobalLoader();
+});
+```
+
+---
+
+### Animation System
+
+Built-in CSS animation helpers.
+
+#### Basic Animations
+
+```javascript
+// Fade in element
+HTMLComponents.animate('#welcome', [
+    { opacity: 0 },
+    { opacity: 1 }
+], {
+    duration: 500,
+    easing: 'ease-in-out'
+});
+
+// Slide down
+HTMLComponents.animate('.dropdown', [
+    { transform: 'translateY(-100%)', opacity: 0 },
+    { transform: 'translateY(0)', opacity: 1 }
+], {
+    duration: 300
+});
+```
+
+#### Animation Options
+
+```javascript
+HTMLComponents.animate(selector, keyframes, {
+    duration: 300,        // milliseconds
+    easing: 'ease-out',   // timing function
+    fill: 'forwards',     // animation fill mode
+    delay: 0,            // delay before starting
+    iterations: 1        // number of iterations
+});
+```
+
+---
+
+### DOM Utilities
+
+Convenient DOM manipulation functions.
+
+```javascript
+// Class manipulation
+HTMLComponents.addClass('.buttons', 'active');
+HTMLComponents.removeClass('.buttons', 'disabled');
+HTMLComponents.toggleClass('#menu', 'open');
+
+// Attribute manipulation
+HTMLComponents.setAttribute('input[name="email"]', 'required', 'true');
+const value = HTMLComponents.getAttribute('#user-input', 'value');
+
+// Element queries
+const header = HTMLComponents.querySelector('header');
+const buttons = HTMLComponents.querySelectorAll('button');
+```
+
+---
+
+### Component Registry
+
+Register components in memory for instant loading.
+
+```javascript
+// Register inline component
+HTMLComponents.registerComponent('loading-spinner', `
+    <div class="spinner">
+        <div class="bounce1"></div>
+        <div class="bounce2"></div>
+        <div class="bounce3"></div>
+    </div>
+`);
+
+// Use registered component
+HTMLComponents.loadComponent('#loading', 'loading-spinner');
+```
+
+---
+
+### Batch Operations
+
+Load multiple components efficiently.
+
+```javascript
+// Load multiple components at once
+const components = [
+    { selector: '#header', path: 'components/header.html' },
+    { selector: '#sidebar', path: 'components/sidebar.html', props: { active: 'home' } },
+    { selector: '#footer', path: 'components/footer.html' }
+];
+
+HTMLComponents.batchLoad(components).then(results => {
+    console.log('All components loaded!');
+});
+```
 
 ---
 

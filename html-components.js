@@ -364,7 +364,8 @@
         const cachedContent = fileCache.get(componentPath);
         if (cachedContent) {
             logger.success('Component loaded from file cache:', componentPath, 'COMPONENT');
-            element.innerHTML = processTemplate(cachedContent, props);
+            element.innerHTML = processTemplate(cachedContent, props, state);
+            element.setAttribute('data-component-loaded', componentPath);
             bindEventHandlers(element);
             return loadNestedComponents(element).then(() => {
                 executeScripts(element);
@@ -468,12 +469,13 @@
     }
 
     // ===== Template Processing =====
-    function processTemplate(template, props) {
-        if (!props || Object.keys(props).length === 0) return template;
+    function processTemplate(template, props, state = {}) {
+        const context = { ...props, ...state };
+        if (!context || Object.keys(context).length === 0) return template;
 
         let result = template;
-        Object.entries(props).forEach(([key, value]) => {
-            const stringValue = value == null ? '' : 
+        Object.entries(context).forEach(([key, value]) => {
+            const stringValue = value == null ? '' :
                 typeof value === 'object' ? JSON.stringify(value) : String(value);
             result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), stringValue);
         });
@@ -654,6 +656,377 @@
         return children?.length ? promise.then(() => Promise.allSettled(children.map(c => processComponentDefinition(c, element)))) : promise;
     }
 
+    // ===== Reactive State System =====
+    const stateSystem = {
+        states: new Map(),
+        listeners: new Map(),
+        computedDeps: new Map(),
+
+        create: function(name, initialValue) {
+            this.states.set(name, initialValue);
+            this.listeners.set(name, new Set());
+            logger.log(`State created: ${name}`, { value: initialValue }, 'STATE');
+            return name;
+        },
+
+        get: function(name) {
+            return this.states.get(name);
+        },
+
+        set: function(name, value) {
+            const oldValue = this.states.get(name);
+            if (oldValue === value) return;
+
+            this.states.set(name, value);
+            logger.log(`State updated: ${name}`, { oldValue, newValue: value }, 'STATE');
+
+            // Notify listeners
+            const listeners = this.listeners.get(name);
+            if (listeners) {
+                listeners.forEach(callback => {
+                    try {
+                        callback(value, oldValue);
+                    } catch (error) {
+                        logger.error(`State listener error for ${name}`, error, 'STATE');
+                    }
+                });
+            }
+
+            // Update computed values
+            this.computedDeps.forEach((deps, compName) => {
+                if (deps.includes(name)) {
+                    this.updateComputed(compName);
+                }
+            });
+
+            // Auto-update bound elements
+            this.updateBoundElements(name, value);
+
+            // Update component templates that use this state
+            document.querySelectorAll('[data-component-loaded]').forEach(componentEl => {
+                this.updateComponentTemplates(componentEl);
+            });
+        },
+
+        subscribe: function(name, callback) {
+            const listeners = this.listeners.get(name);
+            if (listeners) {
+                listeners.add(callback);
+                logger.log(`State listener added: ${name}`, null, 'STATE');
+            }
+        },
+
+        unsubscribe: function(name, callback) {
+            const listeners = this.listeners.get(name);
+            if (listeners) {
+                listeners.delete(callback);
+                logger.log(`State listener removed: ${name}`, null, 'STATE');
+            }
+        },
+
+        computed: function(name, deps, computeFn) {
+            this.computedDeps.set(name, deps);
+            this.updateComputed(name, computeFn);
+            logger.log(`Computed state created: ${name}`, { deps }, 'STATE');
+            return name;
+        },
+
+        updateComputed: function(name, computeFn) {
+            const deps = this.computedDeps.get(name);
+            if (!deps) return;
+
+            const values = deps.map(dep => this.get(dep));
+            const computedFn = computeFn || this.computedDeps.get(name + '_fn');
+            if (computedFn && typeof computedFn === 'function') {
+                const result = computedFn(...values);
+                this.states.set(name, result);
+            }
+        },
+
+        bind: function(selector, stateName, property = 'textContent') {
+            const element = document.querySelector(selector);
+            if (!element) return;
+
+            const updateElement = (value) => {
+                if (property === 'textContent') {
+                    element.textContent = value;
+                } else if (property === 'innerHTML') {
+                    element.innerHTML = value;
+                } else if (property.startsWith('attr:')) {
+                    const attr = property.split(':')[1];
+                    element.setAttribute(attr, value);
+                } else if (property.startsWith('style:')) {
+                    const styleProp = property.split(':')[1];
+                    element.style[styleProp] = value;
+                } else if (property === 'class') {
+                    element.className = value;
+                }
+            };
+
+            // Initial update
+            updateElement(this.get(stateName));
+
+            // Subscribe to changes
+            this.subscribe(stateName, updateElement);
+
+            // Store binding info
+            if (!element.dataset.bindings) element.dataset.bindings = '[]';
+            const bindings = JSON.parse(element.dataset.bindings);
+            bindings.push({ state: stateName, property });
+            element.dataset.bindings = JSON.stringify(bindings);
+
+            logger.log(`Element bound: ${selector} -> ${stateName}`, { property }, 'STATE');
+        },
+
+        updateBoundElements: function(stateName, value) {
+            document.querySelectorAll('[data-bindings]').forEach(el => {
+                const bindings = JSON.parse(el.dataset.bindings);
+                bindings.forEach(binding => {
+                    if (binding.state === stateName) {
+                        if (binding.property === 'textContent') {
+                            el.textContent = value;
+                        } else if (binding.property === 'innerHTML') {
+                            el.innerHTML = value;
+                        } else if (binding.property.startsWith('attr:')) {
+                            const attr = property.split(':')[1];
+                            el.setAttribute(attr, value);
+                        } else if (binding.property.startsWith('style:')) {
+                            const styleProp = property.split(':')[1];
+                            el.style[styleProp] = value;
+                        } else if (binding.property === 'class') {
+                            el.className = value;
+                        }
+                    }
+                });
+            });
+        },
+
+        updateComponentTemplates: function(componentElement) {
+            if (!componentElement) return;
+
+            // Get all current state
+            const allState = {};
+            this.states.forEach((value, key) => {
+                allState[key] = value;
+            });
+
+            // Re-process templates in this component
+            const walker = document.createTreeWalker(
+                componentElement,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode: function(node) {
+                        return node.textContent.includes('{{') ?
+                            NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                    }
+                }
+            );
+
+            const nodesToUpdate = [];
+            let node;
+            while (node = walker.nextNode()) {
+                nodesToUpdate.push(node);
+            }
+
+            nodesToUpdate.forEach(textNode => {
+                // Store original content on parent element since text nodes don't have dataset
+                const parent = textNode.parentElement;
+                if (!parent) return;
+
+                const key = 'data-original-' + textNode.textContent.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 20);
+                const originalContent = parent.getAttribute(key) || textNode.textContent;
+                parent.setAttribute(key, originalContent);
+                textNode.textContent = processTemplate(originalContent, {}, allState);
+            });
+        }
+    };
+
+    // ===== Enhanced Template Processing =====
+    function processTemplate(template, props, state = {}) {
+        if (!props && !state) return template;
+
+        let result = template;
+        const context = { ...props, ...state };
+
+        // Handle conditionals {{if condition}}content{{/if}}
+        result = result.replace(/\{\{\s*if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\s*\}\}/g, (match, condition, content) => {
+            try {
+                const conditionValue = evaluateExpression(condition, context);
+                return conditionValue ? content : '';
+            } catch (error) {
+                logger.warn('Template conditional error:', { condition, error }, 'TEMPLATE');
+                return '';
+            }
+        });
+
+        // Handle loops {{each items as item}}content{{/each}}
+        result = result.replace(/\{\{\s*each\s+([^}]+)\s+as\s+([^}]+)\}\}([\s\S]*?)\{\{\/each\s*\}\}/g, (match, arrayExpr, itemName, content) => {
+            try {
+                const array = evaluateExpression(arrayExpr, context);
+                if (!Array.isArray(array)) return '';
+
+                return array.map((item, index) => {
+                    const itemContext = { ...context, [itemName]: item, index, $item: item };
+                    return processTemplate(content, itemContext, {});
+                }).join('');
+            } catch (error) {
+                logger.warn('Template loop error:', { arrayExpr, itemName, error }, 'TEMPLATE');
+                return '';
+            }
+        });
+
+        // Handle simple variables {{variable}}
+        Object.entries(context).forEach(([key, value]) => {
+            const stringValue = value == null ? '' :
+                typeof value === 'object' ? JSON.stringify(value) : String(value);
+            result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), stringValue);
+        });
+
+        return result;
+    }
+
+    function evaluateExpression(expr, context) {
+        // Simple expression evaluator for templates
+        // Supports: stateName, stateName.property, stateName === 'value', etc.
+        try {
+            // Create a function with context variables
+            const vars = Object.keys(context).join(',');
+            const func = new Function(vars, `return ${expr};`);
+            return func(...Object.values(context));
+        } catch (error) {
+            logger.warn('Expression evaluation error:', { expr, error }, 'TEMPLATE');
+            return false;
+        }
+    }
+
+    // ===== Component Events System =====
+    const componentEvents = {
+        events: new Map(),
+
+        emit: function(eventName, data = {}, source = null) {
+            const listeners = this.events.get(eventName);
+            if (listeners) {
+                listeners.forEach(callback => {
+                    try {
+                        callback(data, source);
+                    } catch (error) {
+                        logger.error(`Component event error: ${eventName}`, error, 'EVENTS');
+                    }
+                });
+            }
+            logger.log(`Component event emitted: ${eventName}`, { data, source }, 'EVENTS');
+        },
+
+        on: function(eventName, callback) {
+            if (!this.events.has(eventName)) {
+                this.events.set(eventName, new Set());
+            }
+            this.events.get(eventName).add(callback);
+            logger.log(`Component event listener added: ${eventName}`, null, 'EVENTS');
+        },
+
+        off: function(eventName, callback) {
+            const listeners = this.events.get(eventName);
+            if (listeners) {
+                listeners.delete(callback);
+                logger.log(`Component event listener removed: ${eventName}`, null, 'EVENTS');
+            }
+        }
+    };
+
+    // ===== Component Lifecycle =====
+    const lifecycleHooks = {
+        hooks: new Map(),
+
+        add: function(componentPath, hookName, callback) {
+            const key = `${componentPath}:${hookName}`;
+            if (!this.hooks.has(key)) {
+                this.hooks.set(key, new Set());
+            }
+            this.hooks.get(key).add(callback);
+            logger.log(`Lifecycle hook added: ${componentPath} -> ${hookName}`, null, 'LIFECYCLE');
+        },
+
+        trigger: function(componentPath, hookName, element, data = {}) {
+            const key = `${componentPath}:${hookName}`;
+            const hooks = this.hooks.get(key);
+            if (hooks) {
+                hooks.forEach(callback => {
+                    try {
+                        callback(element, data);
+                    } catch (error) {
+                        logger.error(`Lifecycle hook error: ${componentPath}:${hookName}`, error, 'LIFECYCLE');
+                    }
+                });
+            }
+        }
+    };
+
+    // ===== Enhanced Component Loader =====
+    function loadComponentIntoElement(element, componentPath, props = {}, state = {}) {
+        if (loadingComponents.has(componentPath)) {
+            logger.warn('Component already loading - skipping to prevent loop:', componentPath, 'COMPONENT');
+            return Promise.resolve();
+        }
+
+        loadingComponents.add(componentPath);
+        logger.startTimer(`load-${componentPath}`, 'COMPONENT');
+        logger.log('Loading component:', componentPath, 'COMPONENT');
+
+        // Trigger beforeLoad hook
+        lifecycleHooks.trigger(componentPath, 'beforeLoad', element, { props, state });
+
+        const cachedContent = fileCache.get(componentPath);
+        if (cachedContent) {
+            logger.success('Component loaded from file cache:', componentPath, 'COMPONENT');
+            element.innerHTML = processTemplate(cachedContent, props, state);
+            bindEventHandlers(element);
+            executeScripts(element);
+
+            return loadNestedComponents(element).then(() => {
+                // Trigger afterLoad hook
+                lifecycleHooks.trigger(componentPath, 'afterLoad', element, { props, state, cached: true });
+                loadingComponents.delete(componentPath);
+                logger.endTimer(`load-${componentPath}`, 'COMPONENT');
+                return cachedContent;
+            });
+        }
+
+        return fetch(componentPath)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                return response.text();
+            })
+            .then(html => {
+                html = processTemplate(html, props, state);
+                fileCache.set(componentPath, html);
+                element.innerHTML = html;
+                element.setAttribute('data-component-loaded', componentPath);
+                bindEventHandlers(element);
+
+                return loadNestedComponents(element).then(() => {
+                    executeScripts(element);
+                    // Trigger afterLoad hook
+                    lifecycleHooks.trigger(componentPath, 'afterLoad', element, { props, state, cached: false });
+                    loadingComponents.delete(componentPath);
+                    const duration = logger.endTimer(`load-${componentPath}`, 'COMPONENT');
+                    logger.success(`Component loaded: ${componentPath} (${duration?.toFixed(2)}ms)`, null, 'COMPONENT');
+                    return html;
+                });
+            })
+            .catch(error => {
+                loadingComponents.delete(componentPath);
+                // Trigger error hook
+                lifecycleHooks.trigger(componentPath, 'onError', element, { error, props, state });
+                logger.error(`Failed to load component "${componentPath}"`, error, 'COMPONENT');
+                element.innerHTML = `<div style="color: red; padding: 1rem; border: 1px solid red; background: #ffe6e6;">
+                    <strong>Component Load Error:</strong> ${componentPath}<br>
+                    <small>${error.message}</small>
+                </div>`;
+                throw error;
+            });
+    }
+
     // ===== Global API =====
     window.HTMLComponents = {
         loadComponent: function(selector, path, props = {}) {
@@ -721,7 +1094,113 @@
             return loadComponentIntoElement(el, path, props);
         },
 
-        _checkNotificationContainer: () => notificationSystem.checkContainerRemoval()
+        _checkNotificationContainer: () => notificationSystem.checkContainerRemoval(),
+
+        // ===== New Enhanced Features =====
+        // State Management
+        createState: (name, initialValue) => stateSystem.create(name, initialValue),
+        getState: (name) => stateSystem.get(name),
+        setState: (name, value) => stateSystem.set(name, value),
+        subscribeState: (name, callback) => stateSystem.subscribe(name, callback),
+        unsubscribeState: (name, callback) => stateSystem.unsubscribe(name, callback),
+        bindState: (selector, stateName, property) => stateSystem.bind(selector, stateName, property),
+
+        // Computed State
+        computedState: (name, deps, computeFn) => stateSystem.computed(name, deps, computeFn),
+
+        // Component Events
+        emitEvent: (eventName, data, source) => componentEvents.emit(eventName, data, source),
+        onEvent: (eventName, callback) => componentEvents.on(eventName, callback),
+        offEvent: (eventName, callback) => componentEvents.off(eventName, callback),
+
+        // Lifecycle Hooks
+        addLifecycleHook: (componentPath, hookName, callback) => lifecycleHooks.add(componentPath, hookName, callback),
+
+        // Enhanced Component Loading with State
+        loadComponentWithState: function(selector, path, props = {}, state = {}) {
+            const el = document.querySelector(selector);
+            if (!el) return Promise.reject(new Error('Element not found'));
+            return loadComponentIntoElement(el, path, props, state);
+        },
+
+        // Utility Functions
+        querySelector: (selector) => document.querySelector(selector),
+        querySelectorAll: (selector) => Array.from(document.querySelectorAll(selector)),
+
+        // Enhanced Template Processing
+        processTemplate: (template, props, state) => processTemplate(template, props, state),
+
+        // Batch Operations
+        batchLoad: function(components) {
+            const promises = components.map(comp => {
+                if (typeof comp === 'string') {
+                    return this.loadComponent(comp, comp);
+                } else {
+                    return this.loadComponent(comp.selector, comp.path, comp.props || {});
+                }
+            });
+            return Promise.allSettled(promises);
+        },
+
+        // Component Registry
+        registerComponent: function(name, html) {
+            if (!this._componentRegistry) this._componentRegistry = new Map();
+            this._componentRegistry.set(name, html);
+            logger.log(`Component registered: ${name}`, null, 'REGISTRY');
+        },
+
+        getRegisteredComponent: function(name) {
+            return this._componentRegistry?.get(name);
+        },
+
+        // Animation Helpers
+        animate: function(selectorOrElement, keyframes, options = {}) {
+            let element;
+
+            // Try to get element - handle both selectors and elements
+            if (typeof selectorOrElement === 'string') {
+                element = document.querySelector(selectorOrElement);
+            } else if (selectorOrElement && typeof selectorOrElement === 'object' && selectorOrElement.nodeType === 1) {
+                // It's an HTML element
+                element = selectorOrElement;
+            } else {
+                return Promise.reject(new Error('Invalid selector or element: ' + typeof selectorOrElement));
+            }
+
+            if (!element) return Promise.reject(new Error('Element not found'));
+
+            return new Promise((resolve) => {
+                const animation = element.animate(keyframes, {
+                    duration: options.duration || 300,
+                    easing: options.easing || 'ease-out',
+                    fill: options.fill || 'forwards',
+                    ...options
+                });
+                animation.onfinish = resolve;
+            });
+        },
+
+        // DOM Utilities
+        addClass: (selector, className) => {
+            document.querySelectorAll(selector).forEach(el => el.classList.add(className));
+        },
+
+        removeClass: (selector, className) => {
+            document.querySelectorAll(selector).forEach(el => el.classList.remove(className));
+        },
+
+        toggleClass: (selector, className) => {
+            document.querySelectorAll(selector).forEach(el => el.classList.toggle(className));
+        },
+
+        setAttribute: (selector, attr, value) => {
+            document.querySelectorAll(selector).forEach(el => el.setAttribute(attr, value));
+        },
+
+        getAttribute: (selector, attr) => {
+            const el = document.querySelector(selector);
+            return el ? el.getAttribute(attr) : null;
+        }
     };
     logger.log('HTMLComponents library initialized', null, 'INIT');
 })();

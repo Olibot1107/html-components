@@ -4,12 +4,17 @@ A lightweight, powerful JavaScript library for building dynamic web applications
 
 ## Features
 
-✨ **Zero Configuration** - Include one script, start building  
-🚀 **Fast & Efficient** - Built-in caching and optimization  
-📦 **Self-Contained Components** - HTML, CSS, and JS in one file  
-🎯 **Simple Event Binding** - Use `data-*` attributes for interactions  
-🔧 **Full Control** - Programmatic API for dynamic loading  
-⚡ **Smart Caching** - Automatic file and page caching  
+✨ **Zero Configuration** - Include one script, start building
+🚀 **Fast & Efficient** - Built-in caching and optimization
+📦 **Self-Contained Components** - HTML, CSS, and JS in one file
+🎯 **Simple Event Binding** - Use `data-*` attributes for interactions
+🔧 **Full Control** - Programmatic API for dynamic loading
+⚡ **Smart Caching** - Automatic file and page caching
+🔄 **Reactive State** - Built-in state management and data binding
+🎨 **Enhanced Templates** - Conditionals, loops, and expressions
+📡 **Component Events** - Communication between components
+🔗 **Lifecycle Hooks** - Control component loading lifecycle
+🎬 **Animations** - Easy CSS animations and transitions
 
 ## Quick Start
 
