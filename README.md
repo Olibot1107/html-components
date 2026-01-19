@@ -2,20 +2,6 @@
 
 A lightweight, powerful JavaScript library for building dynamic web applications using reusable HTML components. No build tools, no frameworks—just clean, simple component-based development.
 
-## Features
-
-✨ **Zero Configuration** - Include one script, start building
-🚀 **Fast & Efficient** - Built-in caching and optimization
-📦 **Self-Contained Components** - HTML, CSS, and JS in one file
-🎯 **Simple Event Binding** - Use `data-*` attributes for interactions
-🔧 **Full Control** - Programmatic API for dynamic loading
-⚡ **Smart Caching** - Automatic file and page caching
-🔄 **Reactive State** - Built-in state management and data binding
-🎨 **Enhanced Templates** - Conditionals, loops, and expressions
-📡 **Component Events** - Communication between components
-🔗 **Lifecycle Hooks** - Control component loading lifecycle
-🎬 **Animations** - Easy CSS animations and transitions
-
 ## Quick Start
 
 ### 1. Include the Library
@@ -71,12 +57,12 @@ python -m http.server 8080
 npx http-server -p 8080
 ```
 
-Visit `http://localhost:8080` - Done! 🎉
+Visit `http://localhost:8080` - Done!
 
 ## Documentation
 
-- 📚 **[Full Documentation](md/DOCUMENTATION.md)** - Complete API reference and advanced features
-- 🚀 **[Quick Start Guide](md/QUICKSTART.md)** - Step-by-step tutorial with examples
+- **[Full Documentation](md/DOCUMENTATION.md)** - Complete API reference and advanced features
+- **[Quick Start Guide](md/QUICKSTART.md)** - Step-by-step tutorial with examples
 
 ## Core Concepts
 
@@ -260,10 +246,10 @@ HTMLComponents.buildPage(page);
 
 ## Browser Support
 
-- ✅ Chrome/Edge 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Mobile browsers (iOS Safari 14+, Chrome Android)
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+- Mobile browsers (iOS Safari 14+, Chrome Android)
 
 ## Development Tips
 
@@ -320,10 +306,10 @@ MIT License - Free for personal and commercial use.
 
 ## Links
 
-- 📖 [Documentation](md/DOCUMENTATION.md)
-- 🚀 [Quick Start](md/QUICKSTART.md)
-- 🐛 [Report Issues](https://github.com/Olibot1107/html-components/issues)
-- 💬 [Discussions](https://github.com/Olibot1107/html-components/discussions)
+- [Documentation](md/DOCUMENTATION.md)
+- [Quick Start](md/QUICKSTART.md)
+- [Report Issues](https://github.com/Olibot1107/html-components/issues)
+- [Discussions](https://github.com/Olibot1107/html-components/discussions)
 
 ---
 
