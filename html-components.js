@@ -1,6 +1,7 @@
-// HTML Components Library - Fixed Version (with Advanced Logging)
-// Create entire websites from JavaScript component definitions
-// Supports dynamic image loading, component registries, and page building
+/**
+* html-componets.js v3.5
+* Github: https://github.com/Olibot1107/html-components
+**/
 
 (function() {
     'use strict';
